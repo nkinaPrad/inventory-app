@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>教材在庫カウント</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --text: #222;
+      --sub: #666;
+      --line: #e4e7ec;
+      --primary: #1f6feb;
+      --danger: #d73a49;
+      --btn-bg: #f0f4f8;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+
+    .room-label {
+      font-size: 14px;
+      color: var(--sub);
+      margin-bottom: 8px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 180px;
+      padding: 14px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 16px;
+      background: #fff;
+    }
+
+    .toolbar button {
+      border: none;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 48px;
+    }
+
+    #sendBtn {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    #reloadBtn {
+      background: var(--btn-bg);
+      color: var(--text);
+    }
+
+    .status {
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--sub);
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    main {
+      padding: 12px;
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .item {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .item-name {
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .counter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .counter button {
+      width: 52px;
+      height: 52px;
+      border: none;
+      border-radius: 14px;
+      font-size: 28px;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--btn-bg);
+      color: var(--text);
+    }
+
+    .counter button.minus {
+      color: var(--danger);
+    }
+
+    .qty {
+      min-width: 56px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--sub);
+      padding: 32px 12px;
+      font-size: 16px;
+    }
+
+    .footer-space {
+      height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="title">教材在庫カウント</h1>
+    <div id="roomLabel" class="room-label"></div>
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="教材名で検索" />
+      <button id="reloadBtn" type="button">再取得</button>
+      <button id="sendBtn" type="button">送信</button>
+    </div>
+  </header>
+
+  <div id="status" class="status">起動中...</div>
+
+  <main>
+    <div id="list" class="list"></div>
+    <div class="footer-space"></div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -2,18 +2,15 @@
 // 設定
 // ================================
 
-// GASのWebアプリURLに差し替えてください
+// GASのWebアプリURL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzqkOFekM__viIWAOCeeUSVnMCqJUXvOK0zxY4vkSW4AgXUnl_EWwDP5rqskScEeWbo/exec";
-
-// URLパラメータ room の初期値
-const DEFAULT_ROOM = "room1";
 
 // localStorageのキー接頭辞
 const STORAGE_PREFIX = "inventory_cache_";
 
 // アプリ状態
 let state = {
-  room: DEFAULT_ROOM,
+  room: null,
   items: [],
   filteredItems: [],
   query: "",
@@ -28,20 +25,29 @@ const searchInputEl = document.getElementById("searchInput");
 const reloadBtnEl = document.getElementById("reloadBtn");
 const sendBtnEl = document.getElementById("sendBtn");
 const listEl = document.getElementById("list");
+const toolbarEl = document.getElementById("toolbar");
+const guideEl = document.getElementById("guide");
 
 // ================================
 // 初期化
 // ================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // URLから教室IDを取得
   state.room = getRoomFromUrl();
+
+  if (!state.room) {
+    showRoomRequiredState();
+    return;
+  }
+
   roomLabelEl.textContent = `対象教室: ${state.room}`;
+  toolbarEl.classList.remove("hidden");
+  guideEl.classList.add("hidden");
 
   // まずはローカルキャッシュを表示
   const cached = loadCache(state.room);
   if (cached && Array.isArray(cached.items)) {
-    state.items = cached.items;
+    state.items = normalizeItems(cached.items);
     state.lastLoadedAt = cached.lastLoadedAt || null;
     state.lastSentAt = cached.lastSentAt || null;
     applyFilterAndRender();
@@ -69,13 +75,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ================================
+// 画面状態
+// ================================
+
+function showRoomRequiredState() {
+  roomLabelEl.textContent = "対象教室: 未指定";
+  toolbarEl.classList.add("hidden");
+  guideEl.classList.remove("hidden");
+  listEl.innerHTML = "";
+  setStatus("room パラメータがありません");
+}
+
+// ================================
 // URL / localStorage
 // ================================
 
 function getRoomFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const room = params.get("room");
-  return room ? room : DEFAULT_ROOM;
+  const room = (params.get("room") || "").trim();
+  return room || null;
 }
 
 function getStorageKey(room) {
@@ -117,10 +135,9 @@ async function initializeData() {
   } catch (error) {
     console.error(error);
 
-    // GAS取得失敗時、まだ何もなければ data.json を読む
     if (!state.items || state.items.length === 0) {
-      await loadInitialJson();
-      setStatus("オフラインのため初期データを読み込みました");
+      setStatus("通信失敗。データを取得できませんでした");
+      listEl.innerHTML = `<div class="empty">データを取得できませんでした</div>`;
     } else {
       setStatus("通信失敗のためローカルキャッシュを使用中");
     }
@@ -171,14 +188,7 @@ async function loadMasterItems() {
     throw new Error("教材マスタの取得に失敗しました");
   }
 
-  state.items = result.items.map(item => ({
-    id: String(item.id),
-    category: String(item.category || ""),
-    name: String(item.name),
-    publisher: String(item.publisher || ""),
-    qty: Math.max(0, Number(item.qty || 0))
-  }));
-
+  state.items = normalizeItems(result.items);
   state.lastLoadedAt = result.timestamp || new Date().toISOString();
   saveCache(state.room);
   applyFilterAndRender();
@@ -189,6 +199,11 @@ async function loadMasterItems() {
 // ================================
 
 async function sendAllData() {
+  if (!state.room) {
+    alert("教室が指定されていません。");
+    return;
+  }
+
   setStatus("送信中...");
 
   const payload = {
@@ -202,7 +217,6 @@ async function sendAllData() {
       headers: {
         "Content-Type": "text/plain;charset=utf-8"
       },
-      // GAS側で JSON.parse(e.postData.contents) する
       body: JSON.stringify(payload)
     });
 
@@ -218,8 +232,6 @@ async function sendAllData() {
 
     state.lastSentAt = result.timestamp || new Date().toISOString();
     state.lastLoadedAt = state.lastSentAt;
-
-    // 送信成功後の状態をキャッシュへ保存
     saveCache(state.room);
 
     setStatus(`送信成功: ${formatDateTime(state.lastSentAt)}`);
@@ -238,13 +250,8 @@ function incrementItem(id) {
   const item = state.items.find(x => x.id === id);
   if (!item) return;
 
-  // 即時反映
   item.qty += 1;
-
-  // localStorageへ即保存
   saveCache(state.room);
-
-  // 再描画
   applyFilterAndRender();
 }
 
@@ -252,16 +259,10 @@ function decrementItem(id) {
   const item = state.items.find(x => x.id === id);
   if (!item) return;
 
-  // 0未満禁止
   if (item.qty <= 0) return;
 
-  // 即時反映
   item.qty -= 1;
-
-  // localStorageへ即保存
   saveCache(state.room);
-
-  // 再描画
   applyFilterAndRender();
 }
 
@@ -273,10 +274,13 @@ function applyFilterAndRender() {
   const q = state.query.toLowerCase();
 
   if (!q) {
-    state.filteredItems = state.items;
+    state.filteredItems = [...state.items];
   } else {
     state.filteredItems = state.items.filter(item =>
-      item.name.toLowerCase().includes(q)
+      (item.id || "").toLowerCase().includes(q) ||
+      (item.category || "").toLowerCase().includes(q) ||
+      (item.name || "").toLowerCase().includes(q) ||
+      (item.publisher || "").toLowerCase().includes(q)
     );
   }
 
@@ -295,7 +299,17 @@ function renderList() {
 
   const html = state.filteredItems.map(item => `
     <div class="item">
-      <div class="item-name">${escapeHtml(item.name)}</div>
+      <div class="item-main">
+        <div class="item-top">
+          <span class="chip">${escapeHtml(item.id)}</span>
+          ${item.category ? `<span class="chip">${escapeHtml(item.category)}</span>` : ""}
+        </div>
+        <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-meta">
+          ${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}
+        </div>
+      </div>
+
       <div class="counter">
         <button class="minus" data-action="minus" data-id="${escapeHtml(item.id)}">－</button>
         <div class="qty">${item.qty}</div>
@@ -306,7 +320,6 @@ function renderList() {
 
   listEl.innerHTML = html;
 
-  // イベント委譲
   listEl.querySelectorAll("button[data-action]").forEach(button => {
     button.addEventListener("click", () => {
       const action = button.dataset.action;
@@ -327,8 +340,10 @@ function renderList() {
 
 function normalizeItems(items) {
   return items.map(item => ({
-    id: String(item.id),
-    name: String(item.name),
+    id: String(item.id || ""),
+    category: String(item.category || ""),
+    name: String(item.name || ""),
+    publisher: String(item.publisher || ""),
     qty: Math.max(0, Number(item.qty || item.quantity || 0))
   }));
 }

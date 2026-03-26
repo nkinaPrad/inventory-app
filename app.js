@@ -130,7 +130,7 @@ async function initializeData() {
 async function fetchLatestData(manual = false) {
   setStatus(manual ? "最新データ再取得中..." : "最新データ取得中...");
 
-  const response = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.room)}`, {
+  const response = await fetch(`${GAS_URL}?type=inventory&room=${encodeURIComponent(state.room)}`, {
     method: "GET",
     cache: "no-store"
   });
@@ -141,7 +141,6 @@ async function fetchLatestData(manual = false) {
 
   const result = await response.json();
 
-  // GASにデータがある場合はそれを正とする
   if (result && Array.isArray(result.items) && result.items.length > 0) {
     state.items = normalizeItems(result.items);
     state.lastLoadedAt = result.timestamp || new Date().toISOString();
@@ -151,20 +150,36 @@ async function fetchLatestData(manual = false) {
     return;
   }
 
-  // GASが空なら data.json を読み込む
-  await loadInitialJson();
-  setStatus("サーバにデータがないため初期データを読み込みました");
+  // 在庫データが空なら教材マスタから初期化
+  await loadMasterItems();
+  setStatus("在庫データがないため教材マスタを読み込みました");
 }
 
-async function loadInitialJson() {
-  const response = await fetch("./data.json", { cache: "no-store" });
+async function loadMasterItems() {
+  const response = await fetch(`${GAS_URL}?type=master`, {
+    method: "GET",
+    cache: "no-store"
+  });
+
   if (!response.ok) {
-    throw new Error(`data.json読込失敗: ${response.status}`);
+    throw new Error(`教材マスタ取得失敗: ${response.status}`);
   }
 
-  const items = await response.json();
-  state.items = normalizeItems(items);
-  state.lastLoadedAt = new Date().toISOString();
+  const result = await response.json();
+
+  if (!result.success || !Array.isArray(result.items)) {
+    throw new Error("教材マスタの取得に失敗しました");
+  }
+
+  state.items = result.items.map(item => ({
+    id: String(item.id),
+    category: String(item.category || ""),
+    name: String(item.name),
+    publisher: String(item.publisher || ""),
+    qty: Math.max(0, Number(item.qty || 0))
+  }));
+
+  state.lastLoadedAt = result.timestamp || new Date().toISOString();
   saveCache(state.room);
   applyFilterAndRender();
 }

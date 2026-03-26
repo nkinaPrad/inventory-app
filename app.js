@@ -3,7 +3,7 @@
 // ================================
 
 // GASのWebアプリURL
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzqkOFekM__viIWAOCeeUSVnMCqJUXvOK0zxY4vkSW4AgXUnl_EWwDP5rqskScEeWbo/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwt8BiqT_mNC_capKM6od1il1lDBPdbzdSY8L2bzXRLZuxCalQKOvIYYQsM-cTpPlVP/exec";
 
 // localStorageのキー接頭辞
 const STORAGE_PREFIX = "inventory_cache_";

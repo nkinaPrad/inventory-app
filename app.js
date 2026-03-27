@@ -243,13 +243,13 @@ async function sendAllData() {
  */
 function normalizeItems(items) {
   return items.map(item => ({
-    master: String(item.master || ""),       // マスタ区分
-    id: String(item.id || ""),               // 商品コード
-    subject: String(item.subject || item.category || ""), // 科目
-    name: String(item.name || ""),           // 商品名
-    publisher: String(item.publisher || ""), // 出版社
-    qty: Math.max(0, Number(item.qty || 0))  // 部数
-  }));
+    master: String(item.master || ""),
+    id: String(item.id || "").trim(), // 空白を除去して文字列化
+    subject: String(item.subject || item.category || ""),
+    name: String(item.name || ""),
+    publisher: String(item.publisher || ""),
+    qty: Math.max(0, Number(item.qty || 0))
+  })).filter(item => item.id !== ""); // IDがない不正データは除外
 }
 
 /** 検索・並び替えを適用してリストを描画 */

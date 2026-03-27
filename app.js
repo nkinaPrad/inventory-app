@@ -353,12 +353,20 @@ function renderList() {
 
   listEl.innerHTML = html;
 
-  // ボタンイベントの一括登録
+  // イベントリスナー登録時に id を確実に取得
   listEl.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const { action, id } = btn.dataset;
-      action === "plus" ? incrementItem(id) : decrementItem(id);
-    });
+    btn.onclick = (e) => {
+      // 親要素へのバブリングを防ぐ
+      e.preventDefault();
+      const action = btn.getAttribute("data-action");
+      const id = btn.getAttribute("data-id");
+
+      if (action === "plus") {
+        incrementItem(id);
+      } else {
+        decrementItem(id);
+      }
+    };
   });
 }
 

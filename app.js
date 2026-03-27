@@ -5,7 +5,7 @@
  */
 
 // GAS Web AppのURL（デプロイごとに変わるため、更新時はここを書き換える）
-const APP_ID = "AKfycbwZea3sEA9vLPbvpizTmHUDW4wq0XDhqaSrI0StsN7Y6-4LCO_ywI6fL83ZVvOT2fsMFQ";
+const APP_ID = "AKfycbylyAVHX4YkqN-wHhMzNFErhLNvVPySUeB7fxymcc2USaF8rB-lKrorSzm9kdBzD16HOg";
 const GAS_URL = "https://script.google.com/macros/s/" & APP_ID & "/exec";
 
 // ローカルストレージ用の名前空間。拠点が違ってもデータが混ざらないようにする

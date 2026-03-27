@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>教材在庫カウント</title>
   <style>
+    /* --- スタイルは維持（一部チップの色などを調整） --- */
     :root {
       --bg: #f7f8fa;
       --card: #ffffff;
@@ -48,6 +49,7 @@
       font-size: 14px;
       color: var(--sub);
       margin-bottom: 8px;
+      font-weight: 600;
     }
 
     .toolbar {
@@ -75,17 +77,14 @@
       font-weight: 700;
       cursor: pointer;
       min-height: 48px;
+      transition: opacity 0.2s;
     }
 
-    #sendBtn {
-      background: var(--primary);
-      color: #fff;
-    }
+    .toolbar button:active { opacity: 0.7; }
+    .toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    #reloadBtn {
-      background: var(--btn-bg);
-      color: var(--text);
-    }
+    #sendBtn { background: var(--primary); color: #fff; }
+    #reloadBtn { background: var(--btn-bg); color: var(--text); }
 
     .status {
       padding: 8px 16px;
@@ -95,53 +94,42 @@
       border-bottom: 1px solid var(--line);
     }
 
-    main {
-      padding: 12px;
-    }
+    main { padding: 12px; }
 
+    /* 案内画面のスタイル */
     .guide {
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 20px;
+      padding: 24px 20px;
       line-height: 1.7;
     }
 
-    .guide h2 {
-      margin: 0 0 12px;
-      font-size: 18px;
-    }
-
-    .guide code {
-      display: inline-block;
-      background: #f4f6f8;
-      border-radius: 8px;
-      padding: 2px 8px;
-      font-size: 14px;
-    }
+    .guide h2 { margin: 0 0 16px; font-size: 18px; color: var(--text); }
 
     .room-links {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     .room-links a {
-      display: inline-block;
-      background: var(--chip);
-      color: var(--primary);
+      display: block;
+      background: var(--btn-bg);
+      color: var(--text);
       text-decoration: none;
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-weight: 600;
+      padding: 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      text-align: center;
+      border: 1px solid var(--line);
     }
 
-    .list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+    .room-links a:active { background: var(--chip); color: var(--primary); }
+
+    /* リスト表示 */
+    .list { display: flex; flex-direction: column; gap: 10px; }
 
     .item {
       background: var(--card);
@@ -154,16 +142,7 @@
       align-items: center;
     }
 
-    .item-main {
-      min-width: 0;
-    }
-
-    .item-top {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
+    .item-top { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 
     .chip {
       display: inline-block;
@@ -171,36 +150,29 @@
       color: var(--primary);
       border-radius: 999px;
       padding: 4px 10px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
     }
+    .chip.category { background: #e6ffed; color: #1a7f37; } /* 科目は色を変えて見やすく */
 
     .item-name {
       font-size: 17px;
       font-weight: 700;
-      line-height: 1.5;
+      line-height: 1.4;
       word-break: break-word;
       margin-bottom: 6px;
     }
 
-    .item-meta {
-      font-size: 13px;
-      color: var(--sub);
-      line-height: 1.6;
-      word-break: break-word;
-    }
+    .item-meta { font-size: 13px; color: var(--sub); line-height: 1.6; }
 
-    .counter {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    /* カウンター操作 */
+    .counter { display: flex; align-items: center; gap: 10px; }
 
     .counter button {
-      width: 52px;
-      height: 52px;
+      width: 56px;
+      height: 56px;
       border: none;
-      border-radius: 14px;
+      border-radius: 16px;
       font-size: 28px;
       font-weight: 700;
       cursor: pointer;
@@ -208,40 +180,17 @@
       color: var(--text);
     }
 
-    .counter button.minus {
-      color: var(--danger);
-    }
+    .counter button.minus { color: var(--danger); }
 
-    .qty {
-      min-width: 56px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-    }
+    .qty { min-width: 48px; text-align: center; font-size: 24px; font-weight: 700; }
 
-    .empty {
-      text-align: center;
-      color: var(--sub);
-      padding: 32px 12px;
-      font-size: 16px;
-    }
+    .empty { text-align: center; color: var(--sub); padding: 40px 12px; }
 
-    .footer-space {
-      height: 20px;
-    }
-
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
 
     @media (max-width: 640px) {
-      .item {
-        grid-template-columns: 1fr;
-      }
-
-      .counter {
-        justify-content: flex-end;
-      }
+      .item { grid-template-columns: 1fr; }
+      .counter { justify-content: flex-end; margin-top: 4px; }
     }
   </style>
 </head>
@@ -249,8 +198,9 @@
   <header>
     <h1 class="title">教材在庫カウント</h1>
     <div id="roomLabel" class="room-label"></div>
+    
     <div id="toolbar" class="toolbar hidden">
-      <input id="searchInput" type="text" placeholder="商品コード・科目・商品名・出版社で検索" />
+      <input id="searchInput" type="text" placeholder="コード・科目・商品名で検索" />
       <button id="reloadBtn" type="button">再取得</button>
       <button id="sendBtn" type="button">送信</button>
     </div>
@@ -260,22 +210,20 @@
 
   <main>
     <div id="guide" class="guide hidden">
-      <h2>教室を指定してください</h2>
-      <div>URLに <code>?room=教室名</code> を付けて開いてください。</div>
-      <div style="margin-top:8px;">例：</div>
-      <div><code>?room=高田馬場</code></div>
-      <div><code>?room=巣鴨</code></div>
-      <div><code>?room=西日暮里</code></div>
-
+      <h2>教室を選択してください</h2>
       <div class="room-links">
-        <a href="?room=高田馬場">高田馬場</a>
-        <a href="?room=巣鴨">巣鴨</a>
-        <a href="?room=西日暮里">西日暮里</a>
+        <a href="?room=takadanobaba">高田馬場</a>
+        <a href="?room=sugamo">巣鴨</a>
+        <a href="?room=nishinippori">西日暮里</a>
+        <a href="?room=ohji">王子</a>
+        <a href="?room=itabashi">板橋</a>
+        <a href="?room=minamisenju">南千住</a>
+        <a href="?room=kiba">木場</a>
+        <a href="?room=gakuin">学院</a>
       </div>
     </div>
 
     <div id="list" class="list"></div>
-    <div class="footer-space"></div>
   </main>
 
   <script src="app.js"></script>

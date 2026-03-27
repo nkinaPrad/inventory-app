@@ -12,8 +12,8 @@ const GAS_URL = "https://script.google.com/macros/s/" & APP_ID & "/exec";
 const STORAGE_PREFIX = "inventory_cache_";
 
 // パフォーマンス対策：一度に描画する件数。これを超えると「もっと見る」ボタンが出る
-const INITIAL_RENDER_COUNT = 100;
-const RENDER_STEP = 100;
+const INITIAL_RENDER_COUNT = 50;
+const RENDER_STEP = 50;
 
 // 【重要】キャッシュ保存の遅延時間(ミリ秒)。
 // ボタンを連打した際、最後の操作から800ms後に1回だけ保存を実行する（デバウンス処理）

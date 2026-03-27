@@ -80,8 +80,8 @@ function renderList() {
       <div class="item-main">
         <div class="item-top">
           ${item.master ? `<span class="chip master">${escapeHtml(item.master)}</span>` : ""}
-          <span class="chip">${escapeHtml(item.id)}</span>
           ${item.subject ? `<span class="chip subject">${escapeHtml(item.subject)}</span>` : ""}
+          <span class="chip">${escapeHtml(item.id)}</span>
         </div>
         <div class="item-name">${escapeHtml(item.name)}</div>
         <div class="item-meta">${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}</div>

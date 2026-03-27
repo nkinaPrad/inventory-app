@@ -302,16 +302,20 @@ function getRoomKeyFromUrl() {
  */
 
 function incrementItem(id) {
-  const item = state.items.find(x => x.id === id);
-  if (item) {
-    item.qty += 1;
-    saveCache(state.roomKey);
-    applyFilterAndRender();
+  // 文字列として比較し、確実に一致するものを探す
+  const item = state.items.find(x => String(x.id) === String(id));
+  if (!item) {
+    console.error("Item not found for ID:", id);
+    return;
   }
+
+  item.qty += 1;
+  saveCache(state.roomKey);
+  applyFilterAndRender();
 }
 
 function decrementItem(id) {
-  const item = state.items.find(x => x.id === id);
+  const item = state.items.find(x => String(x.id) === String(id));
   if (item && item.qty > 0) {
     item.qty -= 1;
     saveCache(state.roomKey);

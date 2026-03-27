@@ -259,8 +259,8 @@ function applyFilterAndRender() {
   if (!q) {
     state.filteredItems = [...state.items];
   } else {
-    // ID、科目、商品名、出版社から部分一致検索
     state.filteredItems = state.items.filter(item =>
+      (item.master || "").toLowerCase().includes(q) || // マスタ区分も検索対象
       (item.id || "").toLowerCase().includes(q) ||
       (item.subject || "").toLowerCase().includes(q) ||
       (item.name || "").toLowerCase().includes(q) ||
@@ -324,6 +324,7 @@ function decrementItem(id) {
 }
 
 /** 画面上のリストを生成 */
+/** 画面上のリストを生成（マスタ区分・科目を表示） */
 function renderList() {
   if (!state.filteredItems || state.filteredItems.length === 0) {
     listEl.innerHTML = `<div class="empty">該当する教材がありません</div>`;
@@ -334,10 +335,15 @@ function renderList() {
     <div class="item">
       <div class="item-main">
         <div class="item-top">
+          ${item.master ? `<span class="chip master">${escapeHtml(item.master)}</span>` : ""}
+          
           <span class="chip">${escapeHtml(item.id)}</span>
-          ${item.subject ? `<span class="chip category">${escapeHtml(item.subject)}</span>` : ""}
+          
+          ${item.subject ? `<span class="chip subject">${escapeHtml(item.subject)}</span>` : ""}
         </div>
+        
         <div class="item-name">${escapeHtml(item.name)}</div>
+        
         <div class="item-meta">
           ${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}
         </div>
@@ -353,14 +359,10 @@ function renderList() {
 
   listEl.innerHTML = html;
 
-  // イベントリスナー登録時に id を確実に取得
+  // ボタンイベントの登録（onclickで確実に個別のIDを処理）
   listEl.querySelectorAll("button[data-action]").forEach(btn => {
     btn.onclick = (e) => {
-      // 親要素へのバブリングを防ぐ
-      e.preventDefault();
-      const action = btn.getAttribute("data-action");
-      const id = btn.getAttribute("data-id");
-
+      const { action, id } = btn.dataset;
       if (action === "plus") {
         incrementItem(id);
       } else {

@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>教材在庫カウント</title>
   <style>
-    /* --- スタイルは維持（一部チップの色などを調整） --- */
     :root {
       --bg: #f7f8fa;
       --card: #ffffff;
@@ -39,158 +38,74 @@
       padding: 12px 16px;
     }
 
-    .title {
-      font-size: 20px;
-      font-weight: 700;
-      margin: 0 0 8px;
-    }
+    .title { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+    .room-label { font-size: 14px; color: var(--sub); margin-bottom: 8px; font-weight: 600; }
 
-    .room-label {
-      font-size: 14px;
-      color: var(--sub);
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .toolbar input[type="text"] {
-      flex: 1;
-      min-width: 180px;
-      padding: 14px 12px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      font-size: 16px;
-      background: #fff;
+      flex: 1; min-width: 180px; padding: 14px 12px;
+      border: 1px solid var(--line); border-radius: 12px;
+      font-size: 16px; background: #fff;
     }
 
     .toolbar button {
-      border: none;
-      border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      min-height: 48px;
-      transition: opacity 0.2s;
+      border: none; border-radius: 12px; padding: 14px 16px;
+      font-size: 16px; font-weight: 700; cursor: pointer; min-height: 48px;
     }
-
-    .toolbar button:active { opacity: 0.7; }
-    .toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
 
     #sendBtn { background: var(--primary); color: #fff; }
     #reloadBtn { background: var(--btn-bg); color: var(--text); }
-
-    .status {
-      padding: 8px 16px;
-      font-size: 13px;
-      color: var(--sub);
-      background: #fff;
-      border-bottom: 1px solid var(--line);
-    }
+    .status { padding: 8px 16px; font-size: 13px; color: var(--sub); background: #fff; border-bottom: 1px solid var(--line); }
 
     main { padding: 12px; }
 
-    /* 案内画面のスタイル */
-    .guide {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 24px 20px;
-      line-height: 1.7;
-    }
-
-    .guide h2 { margin: 0 0 16px; font-size: 18px; color: var(--text); }
-
-    .room-links {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
+    /* 案内画面（教室選択） */
+    .guide { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 24px 20px; }
+    .room-links { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
     .room-links a {
-      display: block;
-      background: var(--btn-bg);
-      color: var(--text);
-      text-decoration: none;
-      padding: 16px;
-      border-radius: 12px;
-      font-weight: 700;
-      text-align: center;
-      border: 1px solid var(--line);
+      display: block; background: var(--btn-bg); color: var(--text);
+      text-decoration: none; padding: 16px; border-radius: 12px;
+      font-weight: 700; text-align: center; border: 1px solid var(--line);
     }
 
-    .room-links a:active { background: var(--chip); color: var(--primary); }
-
-    /* リスト表示 */
+    /* リスト・アイテム表示 */
     .list { display: flex; flex-direction: column; gap: 10px; }
-
     .item {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: center;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
     }
 
     .item-top { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 
+    /* チップのスタイル（最新GAS仕様に準拠） */
     .chip {
-      display: inline-block;
-      background: var(--chip);
-      color: var(--primary);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 700;
+      display: inline-block; background: var(--chip); color: var(--primary);
+      border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700;
     }
-    .chip.category { background: #e6ffed; color: #1a7f37; } /* 科目は色を変えて見やすく */
+    /* マスタ区分（A列）: 薄いオレンジ */
+    .chip.master { background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2; }
+    /* 科目（C列）: 薄い緑 */
+    .chip.subject { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
 
-    .item-name {
-      font-size: 17px;
-      font-weight: 700;
-      line-height: 1.4;
-      word-break: break-word;
-      margin-bottom: 6px;
-    }
-
-    .item-meta { font-size: 13px; color: var(--sub); line-height: 1.6; }
+    .item-name { font-size: 17px; font-weight: 700; line-height: 1.4; margin-bottom: 6px; }
+    .item-meta { font-size: 13px; color: var(--sub); }
 
     /* カウンター操作 */
     .counter { display: flex; align-items: center; gap: 10px; }
-
     .counter button {
-      width: 56px;
-      height: 56px;
-      border: none;
-      border-radius: 16px;
-      font-size: 28px;
-      font-weight: 700;
-      cursor: pointer;
-      background: var(--btn-bg);
-      color: var(--text);
+      width: 56px; height: 56px; border: none; border-radius: 16px;
+      font-size: 28px; font-weight: 700; cursor: pointer;
+      background: var(--btn-bg); color: var(--text);
     }
-
     .counter button.minus { color: var(--danger); }
-
     .qty { min-width: 48px; text-align: center; font-size: 24px; font-weight: 700; }
 
     .empty { text-align: center; color: var(--sub); padding: 40px 12px; }
-
     .hidden { display: none !important; }
 
     @media (max-width: 640px) {
       .item { grid-template-columns: 1fr; }
-      .counter { justify-content: flex-end; margin-top: 4px; }
+      .counter { justify-content: flex-end; }
     }
   </style>
 </head>
@@ -198,7 +113,6 @@
   <header>
     <h1 class="title">教材在庫カウント</h1>
     <div id="roomLabel" class="room-label"></div>
-    
     <div id="toolbar" class="toolbar hidden">
       <input id="searchInput" type="text" placeholder="コード・科目・商品名で検索" />
       <button id="reloadBtn" type="button">再取得</button>
@@ -222,7 +136,6 @@
         <a href="?room=gakuin">学院</a>
       </div>
     </div>
-
     <div id="list" class="list"></div>
   </main>
 

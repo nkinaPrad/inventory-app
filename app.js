@@ -74,18 +74,25 @@ function renderList() {
     return;
   }
 
-  // 文字列結合を高速化
+  // 1行ずつHTMLを生成
   const fragments = state.filteredItems.map(item => `
     <div class="item">
       <div class="item-main">
         <div class="item-top">
           ${item.master ? `<span class="chip master">${escapeHtml(item.master)}</span>` : ""}
+          
           ${item.subject ? `<span class="chip subject">${escapeHtml(item.subject)}</span>` : ""}
+          
           <span class="chip">${escapeHtml(item.id)}</span>
         </div>
+        
         <div class="item-name">${escapeHtml(item.name)}</div>
-        <div class="item-meta">${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}</div>
+        
+        <div class="item-meta">
+          ${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}
+        </div>
       </div>
+
       <div class="counter">
         <button type="button" class="minus" data-id="${escapeHtml(item.id)}">－</button>
         <div class="qty">${item.qty}</div>
@@ -96,7 +103,7 @@ function renderList() {
 
   listEl.innerHTML = fragments;
 
-  // イベント一括登録（メモリ効率化）
+  // クリックイベント（高速化のため親要素で一括受け取り）
   listEl.onclick = (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
@@ -107,8 +114,9 @@ function renderList() {
     
     if (item) {
       item.qty = isPlus ? item.qty + 1 : Math.max(0, item.qty - 1);
+      // 数字の部分だけを即座に書き換え（体感速度アップ）
       const qtyDisplay = btn.parentElement.querySelector(".qty");
-      if (qtyDisplay) qtyDisplay.textContent = item.qty; // 部分書き換えで高速化
+      if (qtyDisplay) qtyDisplay.textContent = item.qty;
       saveCache();
     }
   };

@@ -1,22 +1,24 @@
 /**
  * ==================================================================================
- * 定数・基本設定
+ * 1. 定数・設定セクション
  * ==================================================================================
  */
 
-// 連携先となるGoogle Apps ScriptのWebアプリURL
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwC5pANYvRlwAqEFESKb5-rSPQQMR85UBEX9BZJAZRAYBxdYvEdiXGWnymIxmZO7kgUTw/exec";
+// GAS Web AppのURL（デプロイごとに変わるため、更新時はここを書き換える）
+const APP_ID = "AKfycbwC5pANYvRlwAqEFESKb5-rSPQQMR85UBEX9BZJAZRAYBxdYvEdiXGWnymIxmZO7kgUTw";
+const GAS_URL = "https://script.google.com/macros/s/" & APP_ID & "/exec";
 
-// ブラウザのLocalStorageに保存する際の接頭辞（他のサイトのデータと混ざらないようにするため）
+// ローカルストレージ用の名前空間。拠点が違ってもデータが混ざらないようにする
 const STORAGE_PREFIX = "inventory_cache_";
 
-// 初回表示時に描画するアイテム数（一度に数千件出すとブラウザが固まるため制限する）
+// パフォーマンス対策：一度に描画する件数。これを超えると「もっと見る」ボタンが出る
 const INITIAL_RENDER_COUNT = 100;
-
-// 「もっと見る」ボタンを押した際に追加で読み込む件数
 const RENDER_STEP = 100;
 
-// URLパラメータ(?room=xxx)と表示名の対応表
+// 【重要】キャッシュ保存の遅延時間(ミリ秒)。
+// ボタンを連打した際、最後の操作から800ms後に1回だけ保存を実行する（デバウンス処理）
+const CACHE_SAVE_DELAY = 800;
+
 const ROOM_MAP = {
   "takadanobaba": "高田馬場",
   "sugamo": "巣鴨",
@@ -30,23 +32,25 @@ const ROOM_MAP = {
 
 /**
  * ==================================================================================
- * 状態管理（State）
- * アプリの現在の状況を一元管理するオブジェクト
+ * 2. 状態管理（State）
  * ==================================================================================
  */
 let state = {
-  roomKey: null,      // 現在選択されている拠点のキー（例: sugamo）
-  items: [],          // 全データ（原本）
-  filteredItems: [],  // 検索フィルタ適用後の全データ
-  visibleItems: [],   // 実際に画面に表示されている（描画制限内の）データ
-  query: "",          // 検索窓に入力された文字列
-  isSyncing: false,   // GASと通信中かどうか
-  displayLimit: INITIAL_RENDER_COUNT // 現在の表示件数上限
+  roomKey: null,      // 現在の拠点キー
+  items: [],          // マスタ/サーバーから取得した全データ
+  filteredItems: [],  // 検索フィルタにヒットしたデータ
+  visibleItems: [],   // 現在画面に見えているデータ（分割表示用）
+  query: "",          // 検索キーワード
+  isSyncing: false,   // 通信中フラグ（二重送信防止用）
+  displayLimit: INITIAL_RENDER_COUNT // 現在の表示上限数
 };
+
+// デバウンス（遅延実行）用のタイマーを保持する変数
+let cacheSaveTimer = null;
 
 /**
  * ==================================================================================
- * DOM要素の取得
+ * 3. 初期化処理（イベント登録）
  * ==================================================================================
  */
 const roomLabelEl = document.getElementById("roomLabel");
@@ -59,28 +63,23 @@ const countInfoEl = document.getElementById("countInfo");
 const loadMoreWrapEl = document.getElementById("loadMoreWrap");
 const loadMoreBtnEl = document.getElementById("loadMoreBtn");
 
-/**
- * ==================================================================================
- * 初期化処理（イベントリスナー設定）
- * ==================================================================================
- */
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. URLから拠点キーを取得 (?room=sugamo など)
+  // URLのパラメータ (?room=xxx) を取得
   state.roomKey = new URLSearchParams(window.location.search).get("room")?.toLowerCase();
 
-  // 不正な拠点キー、または指定がない場合は案内を表示して終了
+  // 拠点指定がない、または無効な拠点の場合は案内を表示して終了
   if (!state.roomKey || !ROOM_MAP[state.roomKey]) {
     guideEl.classList.remove("hidden");
     setStatus("教室を選択してください");
     return;
   }
 
-  // UIの初期設定
+  // 有効な拠点ならUIを準備
   roomLabelEl.textContent = `対象教室: ${ROOM_MAP[state.roomKey]}`;
   toolbarEl.classList.remove("hidden");
   guideEl.classList.add("hidden");
 
-  // 2. キャッシュの読み込み（速度向上のため、まずは前回のデータを表示する）
+  // まずは前回保存したキャッシュを読み込んで即座に表示（オフライン対応/高速表示）
   const cached = localStorage.getItem(STORAGE_PREFIX + state.roomKey);
   if (cached) {
     try {
@@ -95,68 +94,74 @@ document.addEventListener("DOMContentLoaded", () => {
     listEl.innerHTML = `<div class="empty">データを読み込んでいます...</div>`;
   }
 
-  // 3. サーバー(GAS)から最新データを取得
+  // キャッシュ表示後に、最新データをサーバーへ取りに行く
   fetchLatestData();
 
-  // 検索入力時のイベント
+  // 検索入力：文字が変わるたびにフィルタをかけて再描画
   searchInputEl.addEventListener("input", (e) => {
     state.query = e.target.value.trim();
-    state.displayLimit = INITIAL_RENDER_COUNT; // 検索時は表示上限をリセット
+    state.displayLimit = INITIAL_RENDER_COUNT;
     applyFilterAndRender();
   });
 
-  // リロードボタン
-  document.getElementById("reloadBtn").onclick = () => {
+  // 再取得ボタン：確認後にサーバーからデータをロード
+  document.getElementById("reloadBtn").addEventListener("click", () => {
     if (confirm("最新データを再取得しますか？")) fetchLatestData(true);
-  };
+  });
 
-  // 送信ボタン
-  document.getElementById("sendBtn").onclick = sendAllData;
+  // 送信ボタン：全データをサーバーへPOST
+  document.getElementById("sendBtn").addEventListener("click", sendAllData);
 
-  // 「もっと見る」ボタン
-  loadMoreBtnEl.onclick = () => {
+  // 「もっと見る」：表示上限を増やして追加描画
+  loadMoreBtnEl.addEventListener("click", () => {
     state.displayLimit += RENDER_STEP;
     applyVisibleItems_();
     renderList();
-  };
+  });
 
-  // リスト内のボタン（＋・－）クリックイベント（イベント委譲を利用）
-  listEl.onclick = (e) => {
+  // リスト内クリック：＋/－ボタンの判定（イベント委譲）
+  listEl.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
-    if (!btn || btn.id === "loadMoreBtn") return;
+    if (!btn) return;
 
-    const id = btn.dataset.id;
-    const isPlus = btn.classList.contains("plus");
-    const item = state.items.find(x => String(x.id) === String(id));
+    // ボタンに埋め込んだ index（visibleItems内での位置）を取得
+    const idx = Number(btn.dataset.index);
+    if (Number.isNaN(idx)) return;
 
+    const item = state.visibleItems[idx];
     if (!item) return;
 
-    // 数値を更新（マイナスは0未満にならないように制御）
-    item.qty = isPlus ? item.qty + 1 : Math.max(0, item.qty - 1);
+    // 在庫数の加減算
+    if (btn.classList.contains("plus")) {
+      item.qty += 1;
+    } else if (btn.classList.contains("minus")) {
+      item.qty = Math.max(0, item.qty - 1);
+    } else {
+      return;
+    }
 
-    // 画面上の数値表示だけを即時書き換え（再描画全体を行わないことで軽快に動作させる）
+    // パフォーマンス向上のため、該当する箇所の数値だけをDOM書き換え
     const itemCard = btn.closest(".item");
     if (itemCard) {
       const qtyDisplay = itemCard.querySelector(".qty");
       if (qtyDisplay) qtyDisplay.textContent = item.qty;
     }
 
-    // 更新のたびにキャッシュへ保存（ブラウザを閉じても大丈夫なように）
-    saveCache();
-  };
+    // 操作のたびに「後で保存する予約」を入れる
+    scheduleCacheSave();
+  });
 });
 
 /**
  * ==================================================================================
- * 描画・フィルタ関連
+ * 4. 描画・フィルタリングロジック
  * ==================================================================================
  */
 
 /**
- * stateにあるデータを元に、HTMLを生成して画面に反映する
+ * 現在の visibleItems を使ってHTMLを構築し、画面に反映
  */
 function renderList() {
-  // データが1件もない場合
   if (state.items.length === 0 && !state.isSyncing) {
     listEl.innerHTML = `<div class="empty">データがありません。</div>`;
     countInfoEl.textContent = "";
@@ -164,7 +169,6 @@ function renderList() {
     return;
   }
 
-  // 検索結果が0件の場合
   if (state.visibleItems.length === 0) {
     listEl.innerHTML = `<div class="empty">該当する教材がありません。</div>`;
     countInfoEl.textContent = `0件`;
@@ -172,8 +176,8 @@ function renderList() {
     return;
   }
 
-  // 配列からHTML文字列を一括生成
-  const fragments = state.visibleItems.map(item => `
+  // data-index を各ボタンに付与することで、クリック時にどのアイテムか特定可能にする
+  const fragments = state.visibleItems.map((item, index) => `
     <div class="item">
       <div class="item-main">
         <div class="item-top">
@@ -187,9 +191,9 @@ function renderList() {
         </div>
       </div>
       <div class="counter">
-        <button type="button" class="minus" data-id="${escapeHtml(item.id)}">－</button>
+        <button type="button" class="minus" data-index="${index}">－</button>
         <div class="qty">${item.qty}</div>
-        <button type="button" class="plus" data-id="${escapeHtml(item.id)}">＋</button>
+        <button type="button" class="plus" data-index="${index}">＋</button>
       </div>
     </div>
   `).join("");
@@ -206,7 +210,7 @@ function renderList() {
     countInfoEl.textContent = `${visible} / ${total}件を表示`;
   }
 
-  // 「もっと見る」ボタンの表示制御（まだ表示しきれていないデータがある場合のみ出す）
+  // 「もっと見る」ボタンの表示判断
   if (!state.query && state.filteredItems.length > state.visibleItems.length) {
     loadMoreWrapEl.classList.remove("hidden");
   } else {
@@ -215,57 +219,15 @@ function renderList() {
 }
 
 /**
- * 入力されたクエリに基づきフィルタリングし、表示用リストを作成する
- */
-function applyFilterAndRender() {
-  const q = state.query.toLowerCase();
-
-  if (!q) {
-    state.filteredItems = state.items;
-  } else {
-    // ID、商品名、科目のいずれかにヒットすれば抽出
-    state.filteredItems = state.items.filter(i =>
-      i.id.toLowerCase().includes(q) ||
-      i.name.toLowerCase().includes(q) ||
-      i.subject.toLowerCase().includes(q)
-    );
-  }
-
-  applyVisibleItems_();
-  renderList();
-}
-
-/**
- * フィルタリング後のリストから、実際に描画する件数分(displayLimit)だけを切り出す
- */
-function applyVisibleItems_() {
-  if (state.query) {
-    // 検索中は全件表示（フィルタで絞られているはずなので）
-    state.visibleItems = state.filteredItems;
-  } else {
-    // 通常時はステップごとに分割表示
-    state.visibleItems = state.filteredItems.slice(0, state.displayLimit);
-  }
-}
-
-/**
- * ==================================================================================
- * 通信関連（API呼び出し）
- * ==================================================================================
- */
-
-/**
- * GASから最新の在庫データを取得する
- * @param {boolean} manual - 手動更新ボタンから呼ばれたかどうか
+ * サーバーから最新情報を取得。成功したらキャッシュを即時保存し描画。
  */
 async function fetchLatestData(manual = false) {
-  if (state.isSyncing) return; // 二重送信防止
+  if (state.isSyncing) return;
 
   state.isSyncing = true;
   if (manual) setStatus("最新データ取得中...");
 
   try {
-    // タイムアウト設定（15秒で中断）
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -278,14 +240,12 @@ async function fetchLatestData(manual = false) {
 
     if (!result.success) throw new Error(result.message || "データ取得に失敗しました");
 
-    // 取得したデータを状態に反映し、キャッシュも更新
     state.items = normalizeItems(result.items || []);
-    saveCache();
+    saveCacheNow(); // 取得成功時は即時保存
     applyFilterAndRender();
     setStatus("同期完了");
   } catch (e) {
     console.error(e);
-    // 失敗してもキャッシュがあれば操作は継続可能
     setStatus("オフライン表示中");
   } finally {
     state.isSyncing = false;
@@ -293,11 +253,45 @@ async function fetchLatestData(manual = false) {
 }
 
 /**
- * 現在の状態（全アイテムの在庫数）をGASへPOST送信する
+ * 検索キーワードに基づいて全データからフィルタリング
+ */
+function applyFilterAndRender() {
+  const q = state.query.toLowerCase();
+
+  if (!q) {
+    state.filteredItems = state.items;
+  } else {
+    state.filteredItems = state.items.filter(i =>
+      i.id.toLowerCase().includes(q) ||
+      i.name.toLowerCase().includes(q) ||
+      i.subject.toLowerCase().includes(q)
+    );
+  }
+
+  applyVisibleItems_();
+  renderList();
+}
+
+/**
+ * 表示上限(displayLimit)に合わせて、実際にDOMにするアイテムを切り出す
+ */
+function applyVisibleItems_() {
+  if (state.query) {
+    state.visibleItems = state.filteredItems;
+  } else {
+    state.visibleItems = state.filteredItems.slice(0, state.displayLimit);
+  }
+}
+
+/**
+ * 現在の在庫状況をサーバー(GAS)に保存
  */
 async function sendAllData() {
   const btn = document.getElementById("sendBtn");
   if (!confirm("送信しますか？")) return;
+
+  // 送信前に現在の状態を確実にキャッシュ保存
+  saveCacheNow();
 
   btn.disabled = true;
   setStatus("送信中...");
@@ -328,12 +322,12 @@ async function sendAllData() {
 
 /**
  * ==================================================================================
- * ユーティリティ関数
+ * 5. ユーティリティ・キャッシュ関連
  * ==================================================================================
  */
 
 /**
- * データの型や値を安全に整形する
+ * データのクリーニング。不正な値や空のIDを取り除く。
  */
 function normalizeItems(items) {
   return items.map(item => ({
@@ -343,29 +337,44 @@ function normalizeItems(items) {
     name: String(item.name || "").trim(),
     publisher: String(item.publisher || "").trim(),
     qty: Math.max(0, Number(item.qty || 0))
-  })).filter(item => item.id !== ""); // IDがない不正なデータは除去
+  })).filter(item => item.id !== "");
 }
 
 /**
- * ブラウザのLocalStorageへ現在の状態を保存
+ * キャッシュ保存の「予約」を行う（デバウンス）。
+ * 頻繁なディスク書き込みを抑制し、ブラウザの負荷を下げる。
  */
-function saveCache() {
+function scheduleCacheSave() {
+  if (cacheSaveTimer) clearTimeout(cacheSaveTimer);
+  cacheSaveTimer = setTimeout(() => {
+    saveCacheNow();
+  }, CACHE_SAVE_DELAY);
+}
+
+/**
+ * ローカルストレージに現在の items を保存する。
+ */
+function saveCacheNow() {
   localStorage.setItem(
     STORAGE_PREFIX + state.roomKey,
     JSON.stringify({ items: state.items })
   );
+  // タイマーが走っていたらクリアしておく
+  if (cacheSaveTimer) {
+    clearTimeout(cacheSaveTimer);
+    cacheSaveTimer = null;
+  }
 }
 
 /**
- * 画面上のステータスバーにメッセージを表示
+ * ステータス表示の更新（時刻付き）
  */
 function setStatus(msg) {
   statusEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
 }
 
 /**
- * HTMLエスケープ（XSS対策）
- * ユーザー入力値などを安全にHTMLに埋め込むために使用
+ * 特殊文字をエスケープしてXSSを防ぐ
  */
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, m => ({

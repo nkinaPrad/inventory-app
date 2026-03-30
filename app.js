@@ -1,5 +1,5 @@
 /**
- * 設定（URLを環境に合わせて修正してください）
+ * 設定（URLをご自身の環境に合わせて修正してください）
  */
 const GITHUB_JSON_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/data.json";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzF7Bq_Pf0gzikbx4M2uJ5GDla3EQzuVXwucRqv3hPu509KpnyNXGeuy0QebQf1AlFRJA/exec";
@@ -32,13 +32,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 function initUI() {
   document.getElementById("roomLabel").textContent = state.roomKey.toUpperCase();
   
-  // 検索イベント
   document.getElementById("searchInput").addEventListener("input", (e) => {
     state.query = e.target.value.trim().toLowerCase();
     applyFilterAndRender();
   });
 
-  // フィルタチップクリック
   document.getElementById("filterArea").addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip");
     if (!chip) return;
@@ -53,7 +51,7 @@ function initUI() {
 }
 
 /**
- * データ取得（GitHubマスタ + GAS在庫の並列取得）
+ * データ取得（並列処理）
  */
 async function loadAppData() {
   const startTime = performance.now();
@@ -70,22 +68,22 @@ async function loadAppData() {
     const inventory = invRes.inventory || {};
     state.originalQtyMap = { ...inventory };
 
-    // 日本語キーでのマッピング
+    // ★ご提示いただいたJSONのキー名（id, name, category...）に合わせてマッピング
     state.items = masterRes.map(m => {
-      const id = String(m["商品コード"] || "");
+      const id = String(m.id || "");
       return {
         id: id,
-        name: m["商品名"] || "名称不明",
-        category: m["マスタ区分"] || "未分類",
-        subject: m["科目"] || "",
-        publisher: m["出版社"] || "",
+        name: m.name || "名称不明",
+        category: m.category || "未分類",
+        subject: m.subject || "",
+        publisher: m.publisher || "",
         qty: inventory[id] || 0,
-        _searchTag: `${id} ${m["商品名"]} ${m["マスタ区分"]} ${m["科目"]} ${m["出版社"]}`.toLowerCase()
+        _searchTag: `${id} ${m.name} ${m.category} ${m.subject} ${m.publisher}`.toLowerCase()
       };
     });
 
     generateCategoryChips();
-    applyFilterAndRender(true); // 初回描画（分割ロジック適用）
+    applyFilterAndRender(true); // 初回は30件分割描画
 
     const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
     setStatus(`完了: ${totalTime}秒`);
@@ -113,11 +111,11 @@ function applyFilterAndRender(isInitial = false) {
   
   state.filteredItems = list;
 
-  // 分割描画ロジック
+  // 分割描画で体感速度を向上
   if (isInitial && list.length > 30) {
-    renderItems(list.slice(0, 30), false); // 先に30件
+    renderItems(list.slice(0, 30), false);
     setTimeout(() => {
-      renderItems(list.slice(30), true);  // 0.1秒後に残りを追加
+      renderItems(list.slice(30), true);
     }, 100);
   } else {
     renderItems(list, false);
@@ -126,7 +124,7 @@ function applyFilterAndRender(isInitial = false) {
 }
 
 /**
- * DOM描画（DocumentFragmentで高速化）
+ * 描画処理（DocumentFragment）
  */
 function renderItems(items, isAppend) {
   const container = document.getElementById("list");
@@ -146,9 +144,9 @@ function renderItems(items, isAppend) {
     div.innerHTML = `
       <div class="item-info">
         <div class="item-top">
-          ${item.category ? `<span class="chip cat">${escapeHtml(item.category)}</span>` : ''}
-          ${item.subject ? `<span class="chip sub">${escapeHtml(item.subject)}</span>` : ''}
-          ${item.publisher ? `<span class="chip pub">${escapeHtml(item.publisher)}</span>` : ''}
+          <span class="chip cat">${escapeHtml(item.category)}</span>
+          <span class="chip sub">${escapeHtml(item.subject)}</span>
+          <span class="chip pub">${escapeHtml(item.publisher)}</span>
         </div>
         <div class="item-name">${escapeHtml(item.name)}</div>
         <div class="item-id">コード: ${escapeHtml(item.id)}</div>
@@ -164,9 +162,6 @@ function renderItems(items, isAppend) {
   container.appendChild(fragment);
 }
 
-/**
- * カテゴリチップ生成
- */
 function generateCategoryChips() {
   const categories = [...new Set(state.items.map(i => i.category))].filter(Boolean).sort();
   const container = document.getElementById("filterArea");
@@ -177,51 +172,34 @@ function generateCategoryChips() {
   `;
 }
 
-/**
- * カウンター操作
- */
 function handleCounter(e) {
   const btn = e.target.closest("button");
   if (!btn) return;
-  
   const card = btn.closest(".item");
   const id = card.dataset.id;
   const item = state.items.find(i => i.id === id);
 
-  if (btn.classList.contains("plus")) {
-    item.qty++;
-  } else if (btn.classList.contains("minus")) {
-    item.qty = Math.max(0, item.qty - 1);
-  }
+  if (btn.classList.contains("plus")) item.qty++;
+  else if (btn.classList.contains("minus")) item.qty = Math.max(0, item.qty - 1);
 
   card.querySelector(".qty").textContent = item.qty;
   card.classList.toggle("has-qty", item.qty > 0);
   updateStats();
 }
 
-/**
- * 統計情報の更新
- */
 function updateStats() {
   const changed = state.items.filter(i => (state.originalQtyMap[i.id] || 0) !== i.qty);
   const total = state.items.reduce((sum, i) => sum + i.qty, 0);
-  
   document.getElementById("changeCount").textContent = changed.length;
   document.getElementById("totalQty").textContent = total;
-  
   const sendBtn = document.getElementById("sendBtn");
   sendBtn.disabled = changed.length === 0;
   sendBtn.classList.toggle("dirty", changed.length > 0);
 }
 
-/**
- * GASへデータ送信
- */
 async function sendData() {
   const changed = state.items.filter(i => (state.originalQtyMap[i.id] || 0) !== i.qty);
-  if (changed.length === 0) return;
-
-  if (!confirm(`${changed.length}件の変更を保存しますか？`)) return;
+  if (changed.length === 0 || !confirm(`${changed.length}件の変更を保存しますか？`)) return;
 
   state.isSyncing = true;
   const btn = document.getElementById("sendBtn");
@@ -236,12 +214,11 @@ async function sendData() {
     const res = await fetch(GAS_URL, { method: "POST", body }).then(r => r.json());
     if (!res.success) throw new Error(res.message);
 
-    // 成功したらオリジナルを更新
     changed.forEach(i => state.originalQtyMap[i.id] = i.qty);
     updateStats();
     alert("保存完了しました。");
   } catch (e) {
-    alert("エラー: " + e.message);
+    alert("保存失敗: " + e.message);
   } finally {
     state.isSyncing = false;
     btn.textContent = "送信する";

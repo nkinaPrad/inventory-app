@@ -5,7 +5,7 @@
  */
 
 // GAS Web AppのURL
-const APP_ID = "AKfycbwYt2HYYCa521iCoskib8iwLvo_nQubGA_5InKWp1oU9FhOY2PU-FSzG4C3249TwZYGRg";
+const APP_ID = "AKfycbx_u7dfc0xHyxOSQ64N3vNLkzqRO0uE-X8VGenwpQaSpX8_jas9ZbZHiQ1y4-Pw7L-ulA";
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 
 // ローカルストレージ用の名前空間
@@ -205,27 +205,38 @@ function renderList() {
 /**
  * 最新データ取得
  */
-async function fetchLatestData(manual = false) {
+async function fetchLatestData() {
   if (state.isSyncing) return;
-
   state.isSyncing = true;
   setStatus("最新データ取得中...");
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const [masterRes, inventoryRes] = await Promise.all([
+      fetch(`${GAS_URL}?type=master`),
+      fetch(`${GAS_URL}?type=inventory&room=${encodeURIComponent(state.roomKey)}`)
+    ]);
 
-    const res = await fetch(`${GAS_URL}?type=inventory&room=${encodeURIComponent(state.roomKey)}`, {
-      signal: controller.signal
+    const masterResult = await masterRes.json();
+    const inventoryResult = await inventoryRes.json();
+
+    if (!masterResult.success) throw new Error(masterResult.message || "マスタ取得失敗");
+    if (!inventoryResult.success) throw new Error(inventoryResult.message || "在庫取得失敗");
+
+    const qtyMap = {};
+    (inventoryResult.items || []).forEach(item => {
+      qtyMap[item.id] = item.qty;
     });
 
-    const result = await res.json();
-    clearTimeout(timeoutId);
+    state.items = (masterResult.items || []).map(item => ({
+      master: String(item.master || "").trim(),
+      id: String(item.id || "").trim(),
+      subject: String(item.subject || "").trim(),
+      name: String(item.name || "").trim(),
+      publisher: String(item.publisher || "").trim(),
+      qty: Math.max(0, Number(qtyMap[item.id] || 0))
+    }));
 
-    if (!result.success) throw new Error(result.message || "データ取得に失敗しました");
-
-    state.items = normalizeItems(result.items || []);
-    state.updatedAt = String(result.updatedAt || "");
+    state.updatedAt = String(inventoryResult.updatedAt || "");
     state.originalQtyMap = buildQtyMap(state.items);
 
     saveCacheNow();

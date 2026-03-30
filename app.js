@@ -423,41 +423,40 @@ async function sendData() {
     // 全件 [id, qty] で送る
     const payload = state.items.map(item => [item.id, item.qty]);
 
-    const body = new URLSearchParams();
-    body.append("room", state.roomKey);
-    body.append("payload", JSON.stringify(payload));
+    // GASに届くようにパラメータを構築
+    const params = new URLSearchParams();
+    params.append("room", state.roomKey);
+    params.append("payload", JSON.stringify(payload));
 
     const res = await fetch(GAS_URL, {
       method: "POST",
-      body
+      mode: "no-cors", // ← GASへのPOSTでCORSエラーを避けるおまじない
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: params.toString()
     });
 
-    if (!res.ok) {
-      throw new Error("通信に失敗しました。");
-    }
+    /**
+     * 【重要】 mode: "no-cors" の場合、レスポンスの中身をJSで読めません。
+     * そのため、res.ok や res.json() を使うとエラーになります。
+     */
+    
+    // 一時的に成功とみなして処理を完結させる（またはGAS側を修正してJSONを返せるようにする）
+    // 今回はまず「保存が通るか」を確認するため、簡易的な成功処理にします。
 
-    const json = await res.json();
-    if (!json.success) {
-      throw new Error(json.message || "保存に失敗しました。");
-    }
-
-    // 保存成功後、現数量をオリジナル化
     state.originalQtyMap = Object.create(null);
-    let dirty = 0;
-
-    for (let i = 0; i < state.items.length; i++) {
-      const item = state.items[i];
+    state.items.forEach(item => {
       state.originalQtyMap[item.id] = item.qty;
-      if (item.qty !== state.originalQtyMap[item.id]) dirty++;
-    }
+    });
 
-    state.dirtyCount = dirty;
+    state.dirtyCount = 0;
     state.lastUpdatedAt = formatNowJa();
 
     updateStatsUI();
     updateMetaInfo();
-    setStatus("保存完了");
-    alert("保存完了しました。");
+    setStatus("保存リクエスト送信完了");
+    alert("保存リクエストを送信しました。\n(反映には数秒かかる場合があります)");
 
   } catch (err) {
     console.error(err);
@@ -469,7 +468,6 @@ async function sendData() {
     updateStatsUI();
   }
 }
-
 
 /**
  * =========================

@@ -292,7 +292,6 @@ function renderItemHTML(item) {
         </div>
 
         <div class="item-name">${escapeHtml(item.name)}</div>
-        <div class="item-code">コード: ${escapeHtml(item.id)}</div>
       </div>
 
       <div class="qty-box">

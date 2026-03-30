@@ -19,18 +19,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(window.location.search);
   state.roomKey = params.get("room")?.toLowerCase();
   
-  if (!state.roomKey) {
-    alert("URLに ?room=校舎名 を指定してください。");
-    return;
-  }
-
   initUI();
   await loadAppData();
 });
 
 // UI初期化
 function initUI() {
-  document.getElementById("roomLabel").textContent = state.roomKey.toUpperCase();
+  const label = document.getElementById("roomLabel");
+  if (state.roomKey) {
+    label.textContent = state.roomKey.toUpperCase();
+  } else {
+    label.textContent = "閲覧モード（校舎未指定）";
+    label.style.color = "#888";
+    const sendBtn = document.getElementById("sendBtn");
+    if (sendBtn) sendBtn.style.display = "none";
+  }
   
   document.getElementById("searchInput").addEventListener("input", (e) => {
     state.query = e.target.value.trim().toLowerCase();
@@ -51,42 +54,51 @@ function initUI() {
 }
 
 /**
- * データ取得（並列処理）
+ * データ取得
  */
 async function loadAppData() {
   const startTime = performance.now();
   setStatus("データ同期中...");
 
   try {
-    const [masterRes, invRes] = await Promise.all([
-      fetch(GITHUB_JSON_URL).then(r => r.json()),
-      fetch(`${GAS_URL}?room=${state.roomKey}`).then(r => r.json())
-    ]);
+    let masterRes, invRes;
 
-    if (!invRes.success) throw new Error(invRes.message);
+    if (state.roomKey) {
+      // 校舎指定がある場合
+      const [mRes, iRes] = await Promise.all([
+        fetch(GITHUB_JSON_URL).then(r => r.json()),
+        fetch(`${GAS_URL}?room=${state.roomKey}`).then(r => r.json())
+      ]);
+      masterRes = mRes;
+      invRes = iRes;
+    } else {
+      // 校舎指定がない場合
+      masterRes = await fetch(GITHUB_JSON_URL).then(r => r.json());
+      invRes = { success: true, inventory: {} };
+    }
 
     const inventory = invRes.inventory || {};
     state.originalQtyMap = { ...inventory };
 
-    // ★ご提示いただいたJSONのキー名（id, name, category...）に合わせてマッピング
+    // ★重要：ご提示いただいたJSONのキー名に厳密に合わせます
     state.items = masterRes.map(m => {
-      const id = String(m.id || "");
+      const idStr = String(m.id || "");
       return {
-        id: id,
+        id: idStr,
         name: m.name || "名称不明",
         category: m.category || "未分類",
         subject: m.subject || "",
         publisher: m.publisher || "",
-        qty: inventory[id] || 0,
-        _searchTag: `${id} ${m.name} ${m.category} ${m.subject} ${m.publisher}`.toLowerCase()
+        qty: inventory[idStr] || 0,
+        _searchTag: `${idStr} ${m.name} ${m.category} ${m.subject} ${m.publisher}`.toLowerCase()
       };
     });
 
     generateCategoryChips();
-    applyFilterAndRender(true); // 初回は30件分割描画
+    applyFilterAndRender(true);
 
     const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
-    setStatus(`完了: ${totalTime}秒`);
+    setStatus(state.roomKey ? `完了: ${totalTime}秒` : "閲覧モードで起動");
   } catch (e) {
     setStatus("取得失敗: " + e.message);
     console.error(e);
@@ -111,7 +123,6 @@ function applyFilterAndRender(isInitial = false) {
   
   state.filteredItems = list;
 
-  // 分割描画で体感速度を向上
   if (isInitial && list.length > 30) {
     renderItems(list.slice(0, 30), false);
     setTimeout(() => {
@@ -124,7 +135,7 @@ function applyFilterAndRender(isInitial = false) {
 }
 
 /**
- * 描画処理（DocumentFragment）
+ * 描画処理
  */
 function renderItems(items, isAppend) {
   const container = document.getElementById("list");
@@ -193,11 +204,14 @@ function updateStats() {
   document.getElementById("changeCount").textContent = changed.length;
   document.getElementById("totalQty").textContent = total;
   const sendBtn = document.getElementById("sendBtn");
-  sendBtn.disabled = changed.length === 0;
-  sendBtn.classList.toggle("dirty", changed.length > 0);
+  if (sendBtn) {
+    sendBtn.disabled = changed.length === 0;
+    sendBtn.classList.toggle("dirty", changed.length > 0);
+  }
 }
 
 async function sendData() {
+  if (!state.roomKey) return;
   const changed = state.items.filter(i => (state.originalQtyMap[i.id] || 0) !== i.qty);
   if (changed.length === 0 || !confirm(`${changed.length}件の変更を保存しますか？`)) return;
 
@@ -228,7 +242,8 @@ async function sendData() {
 
 function setStatus(msg) {
   const now = new Date().toLocaleTimeString("ja-JP");
-  document.getElementById("statusLine").textContent = `[${now}] ${msg}`;
+  const el = document.getElementById("statusLine");
+  if (el) el.textContent = `[${now}] ${msg}`;
 }
 
 function escapeHtml(s) {

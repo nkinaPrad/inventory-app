@@ -8,7 +8,7 @@
 const APP_ID = "AKfycbwngbo2pCFZxAz5jJ9FjloOgjIixpt_SM1ZxTcs0-Bph2lXF1sqKgG8c86Fyq1_ZGLNdA";
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 
-// GitHub上に置く教材マスタCSV
+// GitHub上に置く教材マスタCSV（URLの重複を修正済み）
 const MASTER_CSV_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/master.csv";
 
 const STORAGE_PREFIX = "inventory_cache_";
@@ -149,6 +149,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (itemCard) {
       const qtyDisplay = itemCard.querySelector(".qty");
       if (qtyDisplay) qtyDisplay.textContent = item.qty;
+      
+      // 【HTML改善版を使っている場合のみ有効】数量がある場合にクラスを付与
+      if (item.qty > 0) itemCard.classList.add("has-qty");
+      else itemCard.classList.remove("has-qty");
     }
 
     updateDirtyStatus_();
@@ -190,7 +194,7 @@ function renderList() {
   }
 
   const fragments = state.visibleItems.map((item, index) => `
-    <div class="item">
+    <div class="item ${item.qty > 0 ? 'has-qty' : ''}">
       <div class="item-main">
         <div class="item-top">
           ${item.master ? `<span class="chip master">${escapeHtml(item.master)}</span>` : ""}
@@ -287,7 +291,7 @@ async function fetchLatestData() {
 
 /**
  * ==================================================================================
- * Step 7. CSV読み込み・解析（ヘッダー判定強化版）
+ * 7. CSV読み込み・解析（Shift-JIS & 強力パース版）
  * ==================================================================================
  */
 async function fetchMasterCsv_() {
@@ -299,28 +303,22 @@ async function fetchMasterCsv_() {
 
   if (!res.ok) throw new Error("教材マスタCSVの取得に失敗しました");
 
-  // arrayBufferとして取得し、Shift-JISでデコードする
+  // Shift-JIS対応: バイナリで読み込んでからデコード
   const buffer = await res.arrayBuffer();
-  const decoder = new TextDecoder("shift-jis"); // Excelで作ったCSVはこれ
+  const decoder = new TextDecoder("shift-jis");
   const text = decoder.decode(buffer);
   
   return parseMasterCsv_(text);
 }
 
 function parseMasterCsv_(csvText) {
-  // 1. BOM（目に見えない識別子）を強制除去
+  // BOM除去
   const cleanText = csvText.replace(/^\ufeff/, "");
-  
-  // 2. CSVを配列に分解
   const rows = parseCsvText_(cleanText);
   if (rows.length <= 1) return [];
 
-  // 3. ヘッダー行の各項目から、前後にある " や 空白 をすべて削除して正規化
-  const header = rows[0].map(v => 
-    String(v || "").replace(/^["']|["']$/g, '').trim()
-  );
-
-  // 4. 正規化したヘッダーでインデックスを探す
+  // ヘッダーの前後空白と引用符を徹底除去
+  const header = rows[0].map(v => String(v || "").replace(/^["']|["']$/g, '').trim());
   const idx = {
     master: header.indexOf("マスタ区分"),
     id: header.indexOf("商品コード"),
@@ -329,18 +327,11 @@ function parseMasterCsv_(csvText) {
     publisher: header.indexOf("出版社")
   };
 
-  // デバッグ用（F12のコンソールで確認可能）
-  console.log("正規化済みヘッダー:", header);
-
-  const missing = Object.entries(idx)
-    .filter(([, v]) => v === -1)
-    .map(([k]) => k);
-
+  const missing = Object.entries(idx).filter(([, v]) => v === -1).map(([k]) => k);
   if (missing.length > 0) {
     throw new Error(`CSVヘッダー不足: ${missing.join(", ")}\n取得内容: ${header.join(" | ")}`);
   }
 
-  // 5. データ行の処理（ここでも引用符を掃除）
   return rows.slice(1)
     .map(cols => {
       const getVal = (i) => String(cols[i] || "").replace(/^["']|["']$/g, '').trim();
@@ -355,34 +346,33 @@ function parseMasterCsv_(csvText) {
     .filter(item => item.id !== "");
 }
 
-/**
- * CSVパース本体（引用符内カンマ対応版）
- */
 function parseCsvText_(text) {
   const rows = [];
   const lines = text.split(/\r?\n/);
-  
+  const firstLine = lines[0] || "";
+  const delimiter = firstLine.includes('\t') ? '\t' : ',';
+
   for (let line of lines) {
     if (!line.trim()) continue;
     
-    const row = [];
-    let value = "";
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        // 引用符の中か外かを切り替え
-        inQuotes = !inQuotes;
-      } else if (ch === "," && !inQuotes) {
-        // 引用符の外にあるカンマなら区切り
-        row.push(value);
-        value = "";
-      } else {
-        value += ch;
+    let row = [];
+    if (delimiter === '\t') {
+      row = line.split('\t');
+    } else {
+      let value = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          inQuotes = !inQuotes;
+        } else if (ch === "," && !inQuotes) {
+          row.push(value); value = "";
+        } else {
+          value += ch;
+        }
       }
+      row.push(value);
     }
-    row.push(value);
     rows.push(row);
   }
   return rows;

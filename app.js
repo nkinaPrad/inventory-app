@@ -5,7 +5,7 @@
  */
 
 // GAS Web AppのURL
-const APP_ID = "AKfycbyixO_pXflPeqwkWG3ZAHijCxvNhG98sakWO-YHy1xxG-Kpt9NufOofgYw96AYsQBWMIg";
+const APP_ID = "AKfycbwu3f_qYpwkxOHagWMeL6ptqCWAmOMjUisehuEd5pwROzVjpmmVp8BP38ZbDI65YLt_Mg";
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 
 // ローカルストレージ用の名前空間

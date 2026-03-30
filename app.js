@@ -299,7 +299,11 @@ async function fetchMasterCsv_() {
 
   if (!res.ok) throw new Error("教材マスタCSVの取得に失敗しました");
 
-  const text = await res.text();
+  // arrayBufferとして取得し、Shift-JISでデコードする
+  const buffer = await res.arrayBuffer();
+  const decoder = new TextDecoder("shift-jis"); // Excelで作ったCSVはこれ
+  const text = decoder.decode(buffer);
+  
   return parseMasterCsv_(text);
 }
 

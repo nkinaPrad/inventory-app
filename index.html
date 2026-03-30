@@ -6,270 +6,199 @@
   <title>教材在庫カウント</title>
   
   <style>
-    /* * 変数定義：色を一括管理。
-     * 後のメンテナンスで色を変えたい時はここを直すだけでOK。
-     */
     :root {
-      --bg: #f7f8fa;       /* 全体の背景色 */
-      --card: #ffffff;     /* 各アイテムのカード背景 */
-      --text: #222;        /* メイン文字色 */
-      --sub: #666;         /* 補助的な文字色（出版社など） */
-      --line: #e4e7ec;      /* 境界線（ボーダー）の色 */
-      --primary: #1f6feb;   /* メインのアクション色（送信ボタンなど） */
-      --danger: #d73a49;    /* 警告・マイナスボタンの色 */
-      --btn-bg: #f0f4f8;    /* 標準的なボタンの背景色 */
-      --chip: #eef4ff;      /* タグ（チップ）の背景色 */
+      --bg: #f2f4f7;
+      --card: #ffffff;
+      --text: #1a1c1e;
+      --sub: #5f6368;
+      --line: #dcdfe4;
+      --primary: #1a73e8; /* Googleライクな青 */
+      --primary-light: #e8f0fe;
+      --danger: #d93025;
+      --btn-bg: #ffffff;
+      --chip: #f1f3f4;
     }
 
-    /* * 全体設定 
-     */
     * {
-      box-sizing: border-box; /* パディングを含めたサイズ計算にする */
-      -webkit-tap-highlight-color: transparent; /* スマホでタップした時の青い枠を消す */
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      /* スマホのスクロールを滑らかにする */
-      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
     }
 
-    /* * ヘッダー：画面上部に固定 
-     */
+    /* ヘッダー：影をつけて浮き上がりを強調 */
     header {
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 100;
       background: #fff;
-      border-bottom: 1px solid var(--line);
-      padding: 12px 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      padding: 8px 16px;
     }
 
-    .title { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
-    .room-label { font-size: 14px; color: var(--sub); margin-bottom: 8px; font-weight: 600; }
+    .title { font-size: 18px; font-weight: 700; margin: 0; display: inline-block; }
+    .room-label { font-size: 13px; color: var(--sub); margin: 2px 0 8px; }
 
-    /* ツールバー（検索窓やボタンの並び） */
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .toolbar { display: flex; gap: 8px; align-items: center; }
     
-    .toolbar input[type="text"] {
-      flex: 1; /* 残りの幅をすべて使う */
-      min-width: 180px;
-      padding: 14px 12px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      font-size: 16px; /* スマホでズームされないための最小サイズ */
-      background: #fff;
+    .toolbar input[type="search"] {
+      flex: 1;
+      min-width: 0; /* flexアイテムの縮小を許可 */
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+
+    .toolbar input[type="search"]:focus {
+      border-color: var(--primary);
+      outline: none;
     }
 
     .toolbar button {
-      border: none;
-      border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 16px;
-      font-weight: 700;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 16px;
+      height: 42px;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
-      min-height: 48px; /* 指で押しやすいサイズ（アクセシビリティ対応） */
+      transition: background 0.2s, transform 0.1s;
     }
 
-    #sendBtn { background: var(--primary); color: #fff; }
+    .toolbar button:active { transform: scale(0.96); }
+
+    #sendBtn { background: var(--primary); color: #fff; border: none; }
     #reloadBtn { background: var(--btn-bg); color: var(--text); }
+    #sendBtn:disabled { background: #ccc; }
 
-    /* ステータスバー（「同期完了」などのメッセージ用） */
     .status {
-      padding: 8px 16px;
-      font-size: 13px;
-      color: var(--sub);
-      background: #fff;
-      border-bottom: 1px solid var(--line);
+      padding: 6px 16px;
+      font-size: 12px;
+      color: #fff;
+      background: #3c4043; /* ステータスを暗い色にして情報の重要度を分ける */
     }
 
-    main { padding: 12px; }
+    main { padding: 12px; max-width: 800px; margin: 0 auto; }
 
-    /* * ガイド（教室選択画面） 
-     */
-    .guide {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 24px 20px;
-    }
-
-    .room-links {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .room-links a {
-      display: block;
-      background: var(--btn-bg);
-      color: var(--text);
-      text-decoration: none;
-      padding: 16px;
-      border-radius: 12px;
-      font-weight: 700;
-      text-align: center;
-      border: 1px solid var(--line);
-    }
-
-    /* * 在庫アイテムリスト 
-     */
-    .count-info {
-      margin-bottom: 10px;
-      font-size: 13px;
-      color: var(--sub);
-    }
-
-    .list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
+    /* アイテムカード */
     .item {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      display: grid;
-      grid-template-columns: 1fr auto; /* 左に詳細、右にカウンターを配置 */
-      gap: 12px;
-      align-items: center;
-    }
-
-    /* 商品タグ（マスタ区分や科目） */
-    .item-top {
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 8px;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.3s, border-color 0.3s;
     }
 
+    /* 数量が0より大きい時に変化するクラス（JS側で制御が必要） */
+    .item.has-qty {
+      background: var(--primary-light);
+      border-color: var(--primary);
+    }
+
+    .item-info { flex: 1; margin-right: 12px; }
+
+    .item-top { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
     .chip {
-      display: inline-block;
+      padding: 2px 8px;
+      font-size: 10px;
+      border-radius: 4px;
       background: var(--chip);
-      color: var(--primary);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    /* マスタ区分の色分け（オレンジ系） */
-    .chip.master {
-      background: #fff3e0;
-      color: #e65100;
-      border: 1px solid #ffe0b2;
-    }
-
-    /* 科目の色分け（グリーン系） */
-    .chip.subject {
-      background: #e8f5e9;
-      color: #2e7d32;
-      border: 1px solid #c8e6c9;
-    }
-
-    .item-name {
-      font-size: 17px;
-      font-weight: 700;
-      line-height: 1.4;
-      margin-bottom: 6px;
-    }
-
-    .item-meta {
-      font-size: 13px;
       color: var(--sub);
+      font-weight: bold;
     }
+    .chip.master { background: #feefe3; color: #b06000; }
+    .chip.subject { background: #e6f4ea; color: #137333; }
 
-    /* * カウンター（＋ / － ボタン部分）
-     */
-    .counter {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .item-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .item-meta { font-size: 12px; color: var(--sub); }
+
+    /* カウンター */
+    .counter { display: flex; align-items: center; gap: 12px; }
 
     .counter button {
-      width: 56px; /* 押し間違いを防ぐ大きなサイズ */
-      height: 56px;
-      border: none;
-      border-radius: 16px;
-      font-size: 28px;
-      font-weight: 700;
-      cursor: pointer;
-      background: var(--btn-bg);
-      color: var(--text);
-    }
-
-    .counter button.minus { color: var(--danger); } /* マイナスは赤色で強調 */
-
-    .qty {
-      min-width: 48px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    /* 「さらに表示」ボタンのコンテナ */
-    .load-more-wrap {
-      margin-top: 12px;
-      text-align: center;
-    }
-
-    .load-more-wrap button {
-      border: none;
+      width: 48px;
+      height: 48px;
+      border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 14px 20px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      background: var(--btn-bg);
+      font-size: 24px;
+      background: #fff;
       color: var(--text);
+      box-shadow: 0 2px 0 var(--line);
     }
 
-    .empty {
+    .counter button:active {
+      transform: translateY(2px);
+      box-shadow: none;
+    }
+
+    .counter .minus { color: var(--danger); }
+    .counter .plus { color: var(--primary); }
+
+    .qty { font-size: 22px; font-weight: 700; min-width: 40px; text-align: center; }
+
+    .load-more-wrap { margin: 20px 0 40px; text-align: center; }
+    .load-more-wrap button {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-weight: bold;
+    }
+
+    .guide { background: #fff; padding: 24px; border-radius: 12px; }
+    .room-links a {
+      display: block;
+      padding: 16px;
+      margin-bottom: 8px;
+      background: var(--primary-light);
+      color: var(--primary);
+      text-decoration: none;
+      border-radius: 8px;
       text-align: center;
-      color: var(--sub);
-      padding: 40px 12px;
+      font-weight: bold;
     }
 
-    /* 要素を非表示にするための汎用クラス */
     .hidden { display: none !important; }
 
-    /* * レスポンシブ対応：画面幅が狭い場合（スマホ縦持ちなど） 
-     */
-    @media (max-width: 640px) {
-      .item { 
-        grid-template-columns: 1fr; /* 1列に並べる（カウンターを下に持ってくる） */
-      }
-      .counter { 
-        justify-content: flex-end; /* カウンターを右寄せにする */
-      }
+    @media (max-width: 480px) {
+      .item { flex-direction: column; align-items: stretch; }
+      .counter { justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1 class="title">教材在庫カウント</h1>
-    <div id="roomLabel" class="room-label"></div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h1 class="title">教材在庫</h1>
+      <div id="roomLabel" class="room-label"></div>
+    </div>
 
     <div id="toolbar" class="toolbar hidden">
-      <input id="searchInput" type="text" placeholder="コード・科目・商品名で検索" />
-      <button id="reloadBtn" type="button">再取得</button>
+      <input id="searchInput" type="search" placeholder="検索..." />
+      <button id="reloadBtn" type="button">更新</button>
       <button id="sendBtn" type="button">送信</button>
     </div>
   </header>
 
-  <div id="status" class="status">起動中...</div>
+  <div id="status" class="status"></div>
 
   <main>
     <div id="guide" class="guide hidden">
-      <h2>教室を選択してください</h2>
+      <h2>教室を選択</h2>
       <div class="room-links">
         <a href="?room=takadanobaba">高田馬場</a>
         <a href="?room=sugamo">巣鴨</a>
@@ -283,9 +212,7 @@
     </div>
 
     <div id="countInfo" class="count-info"></div>
-
     <div id="list" class="list"></div>
-
     <div id="loadMoreWrap" class="load-more-wrap hidden">
       <button id="loadMoreBtn" type="button">さらに表示</button>
     </div>

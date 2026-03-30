@@ -1,132 +1,118 @@
 /**
- * 定数・設定
+ * 設定
  */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwngbo2pCFZxAz5jJ9FjloOgjIixpt_SM1ZxTcs0-Bph2lXF1sqKgG8c86Fyq1_ZGLNdA/exec";
-const ROOM_MAP = {
-  "takadanobaba": "高田馬場", "sugamo": "巣鴨", "nishinippori": "西日暮里",
-  "ohji": "王子", "itabashi": "板橋", "minamisenju": "南千住",
-  "kiba": "木場", "gakuin": "学院"
-};
+const GITHUB_JSON_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/data.json";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwO7-t2qMX6u38tjSbe-IKQpjoAxD7MQeKNJTPUaZUyT48I7Gmt7NQ9TTPNiEXSOG9Y/exec";
 
 let state = {
-  roomKey: null, items: [], filteredItems: [], visibleItems: [],
-  query: "", activeFilter: "all", displayLimit: 50, isSyncing: false, originalQtyMap: {}
+  roomKey: null,
+  items: [],
+  filteredItems: [],
+  activeFilter: "all",
+  query: "",
+  originalQtyMap: {},
+  isSyncing: false
 };
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(window.location.search);
   state.roomKey = params.get("room")?.toLowerCase();
-  if (!state.roomKey || !ROOM_MAP[state.roomKey]) { showGuide(); return; }
-  initUI();
-  fetchLatestData();
-});
+  if (!state.roomKey) return;
 
-// 送信忘れ防止
-window.addEventListener('beforeunload', (e) => {
-  const changed = state.items.filter(item => (state.originalQtyMap[item.id] || 0) !== item.qty);
-  if (changed.length > 0) { e.preventDefault(); e.returnValue = ''; }
+  initUI();
+  await loadAppData();
 });
 
 function initUI() {
-  document.getElementById("roomLabel").textContent = ROOM_MAP[state.roomKey];
-  document.getElementById("toolbarContainer").classList.remove("hidden");
-  document.getElementById("bottomBar").classList.remove("hidden");
-  
+  document.getElementById("roomLabel").textContent = state.roomKey.toUpperCase();
   document.getElementById("searchInput").addEventListener("input", (e) => {
     state.query = e.target.value.trim().toLowerCase();
-    state.displayLimit = 50; applyFilterAndRender();
+    applyFilterAndRender();
   });
-  
   document.getElementById("filterArea").addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip");
     if (!chip) return;
     document.querySelectorAll(".f-chip").forEach(c => c.classList.remove("active"));
     chip.classList.add("active");
     state.activeFilter = chip.dataset.filter;
-    state.displayLimit = 50; applyFilterAndRender();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    applyFilterAndRender();
   });
-  
-  document.getElementById("list").addEventListener("click", handleCounter);
   document.getElementById("sendBtn").addEventListener("click", sendData);
-  document.getElementById("loadMoreBtn").addEventListener("click", () => {
-    state.displayLimit += 50; applyFilterAndRender();
-  });
+  document.getElementById("list").addEventListener("click", handleCounter);
 }
 
 /**
- * データの取得と「画面への時間出力」
+ * データの並列取得と描画
  */
-async function fetchLatestData() {
-  if (state.isSyncing) return;
-  state.isSyncing = true;
-  
-  const startTime = performance.now(); // 計測開始
-  setStatus("データ取得中...");
+async function loadAppData() {
+  const startTime = performance.now();
+  setStatus("同期中...");
 
   try {
-    const fetchStart = performance.now();
-    const response = await fetch(`${GAS_URL}?room=${state.roomKey}`);
-    const fetchEnd = performance.now();
-    const fetchDuration = ((fetchEnd - fetchStart) / 1000).toFixed(2);
+    // GitHubのマスタJSONとGASの在庫データを並列で取得（最速）
+    const [masterRes, invRes] = await Promise.all([
+      fetch(GITHUB_JSON_URL).then(r => r.json()),
+      fetch(`${GAS_URL}?room=${state.roomKey}`).then(r => r.json())
+    ]);
 
-    const res = await response.json();
-    if (!res.success) throw new Error(res.message);
+    const inventory = invRes.inventory || {};
+    state.originalQtyMap = { ...inventory };
 
-    const renderStart = performance.now();
-    
-    state.items = res.items.map(m => ({
-      ...m, _searchTag: `${m.id} ${m.name} ${m.category}`.toLowerCase()
+    // データの結合
+    state.items = masterRes.map(m => ({
+      id: String(m.id),
+      name: m.nm,
+      category: m.cat || "未分類",
+      qty: inventory[String(m.id)] || 0,
+      _searchTag: `${m.id} ${m.nm} ${m.cat}`.toLowerCase()
     }));
 
-    state.originalQtyMap = {};
-    res.items.forEach(i => { if(i.qty > 0) state.originalQtyMap[i.id] = i.qty; });
-
     generateCategoryChips();
-    applyFilterAndRender();
-    
-    const renderEnd = performance.now();
-    const renderDuration = ((renderEnd - renderStart) / 1000).toFixed(2);
-    const totalDuration = ((renderEnd - startTime) / 1000).toFixed(2);
+    applyFilterAndRender(true); // 初回描画（分割描画を有効に）
 
-    // ★ ここで画面のステータス行に秒数を書き込みます
-    setStatus(`完了: ${totalDuration}秒 (通信:${fetchDuration}s / 描画:${renderDuration}s)`);
-
+    const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
+    setStatus(`同期完了 (${totalTime}s)`);
   } catch (e) {
-    setStatus("取得エラー: " + e.message);
-  } finally {
-    state.isSyncing = false;
+    setStatus("エラー: " + e.message);
   }
 }
 
-function generateCategoryChips() {
-  const categories = [...new Set(state.items.map(item => item.category))].filter(Boolean).sort();
-  const container = document.getElementById("filterArea");
-  const base = `<div class="f-chip ${state.activeFilter==='all'?'active':''}" data-filter="all">すべて</div>
-                <div class="f-chip ${state.activeFilter==='input'?'active':''}" data-filter="input">入力済</div>`;
-  container.innerHTML = base + categories.map(c => `<div class="f-chip ${state.activeFilter===c?'active':''}" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</div>`).join("");
-}
-
-function applyFilterAndRender() {
+function applyFilterAndRender(isInitial = false) {
   let list = state.items;
-  if (state.activeFilter === "input") list = list.filter(item => item.qty > 0);
-  else if (state.activeFilter !== "all") list = list.filter(item => item.category === state.activeFilter);
-  if (state.query) list = list.filter(item => item._searchTag.includes(state.query));
+  if (state.activeFilter === "input") list = list.filter(i => i.qty > 0);
+  else if (state.activeFilter !== "all") list = list.filter(i => i.category === state.activeFilter);
+  if (state.query) list = list.filter(i => i._searchTag.includes(state.query));
   
   state.filteredItems = list;
-  state.visibleItems = list.slice(0, state.displayLimit);
-  renderList(); updateStats();
+
+  if (isInitial && list.length > 30) {
+    // 最初の30件を即時描画
+    renderItems(list.slice(0, 30), false);
+    // 残りを遅延描画
+    setTimeout(() => {
+      renderItems(list.slice(30), true);
+    }, 100);
+  } else {
+    renderItems(list, false);
+  }
+  updateStats();
 }
 
-function renderList() {
+function renderItems(items, isAppend) {
   const container = document.getElementById("list");
-  if (state.visibleItems.length === 0) {
-    container.innerHTML = `<div class="empty">教材が見つかりません</div>`;
-    document.getElementById("loadMoreWrap").classList.add("hidden");
+  if (!isAppend) container.innerHTML = "";
+  
+  if (items.length === 0 && !isAppend) {
+    container.innerHTML = '<div class="empty">教材が見つかりません</div>';
     return;
   }
-  container.innerHTML = state.visibleItems.map((item, idx) => `
-    <div class="item ${item.qty > 0 ? 'has-qty' : ''}" data-id="${item.id}">
+
+  const fragment = document.createDocumentFragment();
+  items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = `item ${item.qty > 0 ? 'has-qty' : ''}`;
+    div.dataset.id = item.id;
+    div.innerHTML = `
       <div class="item-info">
         <div class="item-top">
           <span class="chip subject">${escapeHtml(item.category)}</span>
@@ -135,53 +121,75 @@ function renderList() {
         <div class="item-name">${escapeHtml(item.name)}</div>
       </div>
       <div class="counter">
-        <button type="button" class="minus" data-idx="${idx}">－</button>
+        <button type="button" class="minus">－</button>
         <div class="qty">${item.qty}</div>
-        <button type="button" class="plus" data-idx="${idx}">＋</button>
+        <button type="button" class="plus">＋</button>
       </div>
-    </div>
-  `).join("");
-  document.getElementById("loadMoreWrap").classList.toggle("hidden", state.filteredItems.length <= state.displayLimit);
+    `;
+    fragment.appendChild(div);
+  });
+  container.appendChild(fragment);
 }
 
-function updateStats() {
-  const changed = state.items.filter(item => (state.originalQtyMap[item.id] || 0) !== item.qty);
-  const total = state.items.reduce((sum, item) => sum + item.qty, 0);
-  document.getElementById("changeCount").textContent = changed.length;
-  document.getElementById("totalQty").textContent = total;
-  document.getElementById("sendBtn").classList.toggle("dirty", changed.length > 0);
+function generateCategoryChips() {
+  const categories = [...new Set(state.items.map(i => i.category))].filter(Boolean).sort();
+  const container = document.getElementById("filterArea");
+  container.innerHTML = `
+    <div class="f-chip active" data-filter="all">すべて</div>
+    <div class="f-chip" data-filter="input">入力済</div>
+    ${categories.map(c => `<div class="f-chip" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</div>`).join("")}
+  `;
 }
 
 function handleCounter(e) {
-  const btn = e.target.closest("button"); if (!btn) return;
-  const idx = parseInt(btn.dataset.idx);
-  const item = state.visibleItems[idx];
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const card = btn.closest(".item");
+  const id = card.dataset.id;
+  const item = state.items.find(i => i.id === id);
+
   if (btn.classList.contains("plus")) item.qty++;
   else if (btn.classList.contains("minus")) item.qty = Math.max(0, item.qty - 1);
-  const card = btn.closest(".item");
+
   card.querySelector(".qty").textContent = item.qty;
   card.classList.toggle("has-qty", item.qty > 0);
   updateStats();
 }
 
+function updateStats() {
+  const changed = state.items.filter(i => (state.originalQtyMap[i.id] || 0) !== i.qty);
+  const total = state.items.reduce((sum, i) => sum + i.qty, 0);
+  document.getElementById("changeCount").textContent = changed.length;
+  document.getElementById("totalQty").textContent = total;
+  document.getElementById("sendBtn").classList.toggle("dirty", changed.length > 0);
+}
+
 async function sendData() {
-  const changed = state.items.filter(item => (state.originalQtyMap[item.id] || 0) !== item.qty);
-  if (changed.length === 0 || !confirm(`${changed.length}件の変更を保存しますか？`)) return;
+  const changed = state.items.filter(i => (state.originalQtyMap[i.id] || 0) !== i.qty);
+  if (changed.length === 0) return;
+
   state.isSyncing = true;
   const btn = document.getElementById("sendBtn");
-  btn.disabled = true; btn.textContent = "送信中...";
+  btn.disabled = true;
+  btn.textContent = "送信中...";
+
   try {
     const body = new URLSearchParams();
     body.append("room", state.roomKey);
     body.append("changedItems", JSON.stringify(changed.map(i => ({id:i.id, qty:i.qty}))));
+
     const res = await fetch(GAS_URL, { method: "POST", body }).then(r => r.json());
     if (!res.success) throw new Error(res.message);
+
     changed.forEach(i => state.originalQtyMap[i.id] = i.qty);
-    updateStats(); alert("送信完了！");
+    updateStats();
+    alert("保存しました。");
   } catch (e) {
-    alert("送信失敗: " + e.message);
+    alert("エラー: " + e.message);
   } finally {
-    state.isSyncing = false; btn.disabled = false; btn.textContent = "送信する";
+    state.isSyncing = false;
+    btn.disabled = false;
+    btn.textContent = "送信する";
   }
 }
 
@@ -192,15 +200,4 @@ function setStatus(msg) {
 
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[m]));
-}
-
-function showGuide() {
-  const guide = document.getElementById("guide"); guide.classList.remove("hidden");
-  const links = document.getElementById("roomLinks");
-  Object.entries(ROOM_MAP).forEach(([key, name]) => {
-    const a = document.createElement("a");
-    a.href = `?room=${key}`; a.textContent = name;
-    a.style = "display:block; padding:18px; margin:12px; background:#e8f0fe; color:#1a73e8; text-decoration:none; border-radius:12px; font-weight:800; text-align:center;";
-    links.appendChild(a);
-  });
 }

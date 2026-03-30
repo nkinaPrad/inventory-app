@@ -209,7 +209,7 @@ async function fetchLatestData(manual = false) {
   if (state.isSyncing) return;
 
   state.isSyncing = true;
-  if (manual) setStatus("最新データ取得中...");
+  setStatus("最新データ取得中...");
 
   try {
     const controller = new AbortController();
@@ -233,7 +233,8 @@ async function fetchLatestData(manual = false) {
     setStatus(buildStatusMessage_("同期完了"));
   } catch (e) {
     console.error(e);
-    setStatus(buildStatusMessage_("オフライン表示中"));
+    setStatus(`取得失敗: ${e.message}`);
+    listEl.innerHTML = `<div class="empty">取得失敗: ${escapeHtml(e.message)}</div>`;
   } finally {
     state.isSyncing = false;
   }

@@ -9,7 +9,7 @@ const APP_ID = "AKfycbwngbo2pCFZxAz5jJ9FjloOgjIixpt_SM1ZxTcs0-Bph2lXF1sqKgG8c86F
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 
 // GitHub上に置く教材マスタCSV
-const MASTER_CSV_URL = "https://raw.githubusercontent.com/nkinaPrad/inbentory-app/main/master.csv";
+const MASTER_CSV_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/master.csv";
 
 const STORAGE_PREFIX = "inventory_cache_";
 const INITIAL_RENDER_COUNT = 50;

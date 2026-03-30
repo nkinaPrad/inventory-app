@@ -5,51 +5,87 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>教材在庫カウント Pro</title>
   <style>
-    /* CSSは前回同様のため省略（変数値などは維持） */
-    :root { --bg: #f2f4f7; --card: #ffffff; --text: #1a1c1e; --sub: #5f6368; --line: #dcdfe4; --primary: #1a73e8; --primary-light: #e8f0fe; --danger: #d93025; --chip: #f1f3f4; }
-    body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); padding-bottom: 100px; }
+    :root {
+      --bg: #f2f4f7; --card: #ffffff; --text: #1a1c1e; --sub: #5f6368;
+      --line: #dcdfe4; --primary: #1a73e8; --primary-light: #e8f0fe;
+      --danger: #d93025; --chip-bg: #f1f3f4;
+    }
+    body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); padding-bottom: 120px; color: var(--text); -webkit-tap-highlight-color: transparent; }
+    
     header { position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 12px 16px; }
     .header-top { display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto; }
     .toolbar-container { max-width: 700px; margin: 8px auto 0; }
-    .toolbar input { width: 100%; padding: 12px; border: 2px solid var(--line); border-radius: 10px; font-size: 16px; }
+    .toolbar-container input { width: 100%; padding: 12px; border: 2px solid var(--line); border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
+    .toolbar-container input:focus { border-color: var(--primary); }
+    
     .filter-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 4px; scrollbar-width: none; }
-    .f-chip { white-space: nowrap; padding: 8px 16px; border-radius: 20px; background: #fff; border: 1px solid var(--line); font-size: 13px; }
-    .f-chip.active { background: var(--primary); color: #fff; }
-    .item { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px auto; display: flex; justify-content: space-between; align-items: center; max-width: 700px; }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .f-chip { white-space: nowrap; padding: 8px 16px; border-radius: 20px; background: #fff; border: 1px solid var(--line); font-size: 13px; cursor: pointer; transition: 0.2s; }
+    .f-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    
+    .item { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px auto; display: flex; justify-content: space-between; align-items: center; max-width: 700px; transition: background 0.2s; }
     .item.has-qty { background: var(--primary-light); border-color: var(--primary); }
-    .chip { padding: 3px 8px; font-size: 10px; border-radius: 6px; background: var(--chip); font-weight: bold; }
-    .chip.subject { background: #e6f4ea; color: #137333; }
-    .item-name { font-size: 16px; font-weight: bold; margin-top: 4px; }
-    .counter { display: flex; align-items: center; gap: 12px; }
-    .counter button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 20px; }
-    .qty { font-size: 20px; font-weight: 800; min-width: 30px; text-align: center; }
-    .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--line); padding: 16px; }
-    .btn-main { padding: 12px 24px; border-radius: 10px; border: none; background: var(--primary); color: #fff; font-weight: bold; }
-    #sendBtn.dirty::after { content: "●"; color: var(--danger); margin-left: 5px; }
-    .status-line { font-size: 11px; text-align: right; color: var(--sub); padding: 0 16px; }
+    
+    .item-info { flex: 1; padding-right: 12px; }
+    .item-top { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .chip { padding: 2px 8px; font-size: 10px; border-radius: 4px; font-weight: bold; }
+    .chip.cat { background: #e8f0fe; color: #1967d2; } /* マスタ区分 */
+    .chip.sub { background: #e6f4ea; color: #137333; } /* 科目 */
+    .chip.pub { background: #fef7e0; color: #b06000; } /* 出版社 */
+    
+    .item-name { font-size: 16px; font-weight: 800; line-height: 1.4; margin-bottom: 4px; }
+    .item-id { font-size: 11px; color: var(--sub); }
+    
+    .counter { display: flex; align-items: center; gap: 12px; user-select: none; }
+    .counter button { width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--line); background: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .counter button:active { background: #f0f0f0; transform: scale(0.95); }
+    .qty { font-size: 22px; font-weight: 800; min-width: 36px; text-align: center; }
+    
+    .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--line); padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.05); }
+    .bottom-bar-inner { max-width: 700px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .btn-main { padding: 14px 32px; border-radius: 12px; border: none; background: var(--primary); color: #fff; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+    .btn-main:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-main.dirty { background: var(--danger); box-shadow: 0 4px 12px rgba(217, 48, 37, 0.3); }
+    
+    .status-line { font-size: 11px; text-align: right; color: var(--sub); padding: 4px 16px; max-width: 700px; margin: 0 auto; height: 14px; }
+    .empty { text-align: center; padding: 40px; color: var(--sub); font-size: 14px; }
+    
+    .hidden { display: none; }
   </style>
 </head>
 <body>
+
 <header>
   <div class="header-top">
-    <h2 style="margin:0; font-size:18px;">在庫管理</h2>
+    <h2 style="margin:0; font-size:18px;">在庫管理システム</h2>
     <div id="roomLabel" style="font-weight:bold; color:var(--primary);"></div>
   </div>
   <div class="toolbar-container">
-    <input id="searchInput" type="search" placeholder="教材名・コード検索..." />
+    <input id="searchInput" type="search" placeholder="教材名・出版社・コードで検索..." autocomplete="off" />
     <div id="filterArea" class="filter-scroll"></div>
   </div>
 </header>
+
 <main>
   <div id="statusLine" class="status-line"></div>
-  <div id="list"></div>
+  <div id="list" style="padding: 0 12px;">
+    </div>
 </main>
+
 <div class="bottom-bar">
-  <div style="max-width:700px; margin:0 auto; display:flex; justify-content:space-between; align-items:center;">
-    <div style="font-size:14px;">変更 <span id="changeCount">0</span>件 / 合計 <span id="totalQty">0</span>部</div>
-    <button id="sendBtn" class="btn-main">送信する</button>
+  <div class="bottom-bar-inner">
+    <div style="line-height:1.2;">
+      <div style="font-size:12px; color:var(--sub);">変更件数 / 合計部数</div>
+      <div>
+        <strong id="changeCount" style="font-size:20px;">0</strong> <span style="font-size:12px;">件</span>
+        <span style="margin: 0 4px; color: var(--line);">|</span>
+        <strong id="totalQty" style="font-size:20px;">0</strong> <span style="font-size:12px;">部</span>
+      </div>
+    </div>
+    <button id="sendBtn" class="btn-main" disabled>送信する</button>
   </div>
 </div>
+
 <script src="app.js"></script>
 </body>
 </html>

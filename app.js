@@ -93,6 +93,8 @@ function initUI() {
 
   list.addEventListener("click", handleCounterClick);
   sendBtn.addEventListener("click", sendData);
+
+  updateMetaInfo();
 }
 
 
@@ -182,6 +184,7 @@ async function loadAppData() {
         ${escapeHtml(err.message)}
       </div>
     `;
+    updateMetaInfo();
   }
 }
 
@@ -234,6 +237,7 @@ function applyFilterAndRender() {
   }
 
   state.filteredItems = result;
+  updateMetaInfo();
   renderFilteredItems(result);
 }
 
@@ -383,17 +387,20 @@ function updateStatsUI() {
  * =========================
  */
 function updateMetaInfo() {
-  const countEl = document.getElementById("visibleCount");
+  const totalCountEl = document.getElementById("totalCount");
+  const visibleCountEl = document.getElementById("visibleCount");
   const updatedEl = document.getElementById("updatedAt");
 
-  if (countEl) {
-    countEl.textContent = `${state.filteredItems.length.toLocaleString()}件表示 / 全${state.items.length.toLocaleString()}件`;
+  if (totalCountEl) {
+    totalCountEl.textContent = `${state.items.length.toLocaleString()}件`;
+  }
+
+  if (visibleCountEl) {
+    visibleCountEl.textContent = `${state.filteredItems.length.toLocaleString()}件`;
   }
 
   if (updatedEl) {
-    updatedEl.textContent = state.lastUpdatedAt
-      ? `最終保存: ${state.lastUpdatedAt}`
-      : "最終保存: -";
+    updatedEl.textContent = state.lastUpdatedAt || "-";
   }
 }
 
@@ -428,22 +435,14 @@ async function sendData() {
     params.append("room", state.roomKey);
     params.append("payload", JSON.stringify(payload));
 
-    const res = await fetch(GAS_URL, {
+    await fetch(GAS_URL, {
       method: "POST",
-      mode: "no-cors", // ← GASへのPOSTでCORSエラーを避けるおまじない
+      mode: "no-cors",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
       body: params.toString()
     });
-
-    /**
-     * 【重要】 mode: "no-cors" の場合、レスポンスの中身をJSで読めません。
-     * そのため、res.ok や res.json() を使うとエラーになります。
-     */
-    
-    // 一時的に成功とみなして処理を完結させる（またはGAS側を修正してJSONを返せるようにする）
-    // 今回はまず「保存が通るか」を確認するため、簡易的な成功処理にします。
 
     state.originalQtyMap = Object.create(null);
     state.items.forEach(item => {
@@ -468,6 +467,7 @@ async function sendData() {
     updateStatsUI();
   }
 }
+
 
 /**
  * =========================

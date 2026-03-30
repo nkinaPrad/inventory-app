@@ -54,20 +54,46 @@ function initUI() {
 async function fetchLatestData() {
   if (state.isSyncing) return;
   state.isSyncing = true;
+  
+  // 計測開始
+  const startTime = performance.now();
   setStatus("同期中...");
+
   try {
-    const res = await fetch(`${GAS_URL}?room=${state.roomKey}`).then(r => r.json());
+    // 1. 通信時間の計測
+    const fetchStart = performance.now();
+    const response = await fetch(`${GAS_URL}?room=${state.roomKey}`);
+    const fetchEnd = performance.now();
+    const fetchDuration = ((fetchEnd - fetchStart) / 1000).toFixed(2); // 秒単位
+
+    const res = await response.json();
     if (!res.success) throw new Error(res.message);
+
+    // 2. データ加工・描画時間の計測
+    const renderStart = performance.now();
+    
     state.items = res.items.map(m => ({
       ...m, _searchTag: `${m.id} ${m.name} ${m.category}`.toLowerCase()
     }));
+
     state.originalQtyMap = {};
     res.items.forEach(i => { if(i.qty > 0) state.originalQtyMap[i.id] = i.qty; });
+
     generateCategoryChips();
     applyFilterAndRender();
-    setStatus("同期完了");
+    
+    const renderEnd = performance.now();
+    const renderDuration = ((renderEnd - renderStart) / 1000).toFixed(2);
+    const totalDuration = ((renderEnd - startTime) / 1000).toFixed(2);
+
+    // 詳細な計測結果を表示
+    setStatus(`完了: 合計${totalDuration}s (通信:${fetchDuration}s / 描画:${renderDuration}s)`);
+    
+    console.log(`[Performance] Total: ${totalDuration}s, Fetch: ${fetchDuration}s, Render: ${renderDuration}s`);
+
   } catch (e) {
     setStatus("取得エラー: " + e.message);
+    console.error(e);
   } finally {
     state.isSyncing = false;
   }

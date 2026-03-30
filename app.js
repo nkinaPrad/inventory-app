@@ -1,38 +1,19 @@
 /**
- * ==================================================================================
- * 1. 定数・設定
- * ==================================================================================
+ * 定数設定
  */
-
-// あなたのGAS WebアプリURL
 const APP_ID = "AKfycbwngbo2pCFZxAz5jJ9FjloOgjIixpt_SM1ZxTcs0-Bph2lXF1sqKgG8c86Fyq1_ZGLNdA";
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
-
-// GitHub上に置く教材マスタCSV（URLの重複を修正済み）
 const MASTER_CSV_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/master.csv";
-
 const STORAGE_PREFIX = "inventory_cache_";
-const INITIAL_RENDER_COUNT = 50;
-const RENDER_STEP = 50;
-const CACHE_SAVE_DELAY = 800;
-const SEARCH_DEBOUNCE_MS = 250;
-const AUTO_SAVE_INTERVAL_MS = 60000; // 60秒ごとに自動保存
 
 const ROOM_MAP = {
-  "takadanobaba": "高田馬場",
-  "sugamo": "巣鴨",
-  "nishinippori": "西日暮里",
-  "ohji": "王子",
-  "itabashi": "板橋",
-  "minamisenju": "南千住",
-  "kiba": "木場",
-  "gakuin": "学院"
+  "takadanobaba": "高田馬場", "sugamo": "巣鴨", "nishinippori": "西日暮里",
+  "ohji": "王子", "itabashi": "板橋", "minamisenju": "南千住",
+  "kiba": "木場", "gakuin": "学院"
 };
 
 /**
- * ==================================================================================
- * 2. 状態管理
- * ==================================================================================
+ * 状態管理
  */
 let state = {
   roomKey: null,
@@ -40,467 +21,300 @@ let state = {
   filteredItems: [],
   visibleItems: [],
   query: "",
+  activeFilter: "all", 
+  displayLimit: 50,
   isSyncing: false,
-  displayLimit: INITIAL_RENDER_COUNT,
-  originalQtyMap: {},
-  lastAutoSaveAt: 0
+  originalQtyMap: {}
 };
 
-let cacheSaveTimer = null;
-let searchTimer = null;
-
-/**
- * ==================================================================================
- * 3. DOM参照
- * ==================================================================================
- */
-const roomLabelEl = document.getElementById("roomLabel");
-const statusEl = document.getElementById("status");
-const searchInputEl = document.getElementById("searchInput");
-const listEl = document.getElementById("list");
-const toolbarEl = document.getElementById("toolbar");
-const guideEl = document.getElementById("guide");
-const countInfoEl = document.getElementById("countInfo");
-const loadMoreWrapEl = document.getElementById("loadMoreWrap");
-const loadMoreBtnEl = document.getElementById("loadMoreBtn");
-
-/**
- * ==================================================================================
- * 4. 初期化
- * ==================================================================================
- */
 document.addEventListener("DOMContentLoaded", () => {
-  state.roomKey = new URLSearchParams(window.location.search).get("room")?.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  state.roomKey = params.get("room")?.toLowerCase();
 
   if (!state.roomKey || !ROOM_MAP[state.roomKey]) {
-    guideEl.classList.remove("hidden");
-    setStatus("教室を選択してください");
+    showGuide();
     return;
   }
 
-  roomLabelEl.textContent = `対象教室: ${ROOM_MAP[state.roomKey]}`;
-  toolbarEl.classList.remove("hidden");
-  guideEl.classList.add("hidden");
-
-  // キャッシュ表示
-  const cached = localStorage.getItem(STORAGE_PREFIX + state.roomKey);
-  if (cached) {
-    try {
-      const data = JSON.parse(cached);
-      state.items = normalizeItems(data.items || []);
-      state.originalQtyMap = buildQtyMap(state.items);
-      applyFilterAndRender();
-      setStatus("キャッシュを表示中（同期中...）");
-    } catch (e) {
-      console.error(e);
-      listEl.innerHTML = `<div class="empty">データを読み込んでいます...</div>`;
-    }
-  } else {
-    listEl.innerHTML = `<div class="empty">データを読み込んでいます...</div>`;
-  }
-
+  initUI();
+  loadCache();
   fetchLatestData();
-
-  // 検索（デバウンス）
-  searchInputEl.addEventListener("input", (e) => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      state.query = e.target.value.trim().toLowerCase();
-      state.displayLimit = INITIAL_RENDER_COUNT;
-      applyFilterAndRender();
-    }, SEARCH_DEBOUNCE_MS);
-  });
-
-  // 再取得
-  document.getElementById("reloadBtn").addEventListener("click", () => {
-    if (confirm("最新データを再取得しますか？")) {
-      fetchLatestData();
-    }
-  });
-
-  // 手動送信
-  document.getElementById("sendBtn").addEventListener("click", sendAllData);
-
-  // さらに表示
-  loadMoreBtnEl.addEventListener("click", () => {
-    state.displayLimit += RENDER_STEP;
-    applyVisibleItems_();
-    renderList();
-  });
-
-  // ＋ / －
-  listEl.addEventListener("click", (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-
-    const idx = Number(btn.dataset.index);
-    const item = state.visibleItems[idx];
-    if (!item) return;
-
-    if (btn.classList.contains("plus")) {
-      item.qty += 1;
-    } else if (btn.classList.contains("minus")) {
-      item.qty = Math.max(0, item.qty - 1);
-    } else {
-      return;
-    }
-
-    const itemCard = btn.closest(".item");
-    if (itemCard) {
-      const qtyDisplay = itemCard.querySelector(".qty");
-      if (qtyDisplay) qtyDisplay.textContent = item.qty;
-      
-      // 【HTML改善版を使っている場合のみ有効】数量がある場合にクラスを付与
-      if (item.qty > 0) itemCard.classList.add("has-qty");
-      else itemCard.classList.remove("has-qty");
-    }
-
-    updateDirtyStatus_();
-    scheduleCacheSave();
-  });
-
-  // 定期自動保存
-  setInterval(async () => {
-    if (document.hidden) return;
-    await syncChanges_("auto");
-  }, AUTO_SAVE_INTERVAL_MS);
-
-  // 画面離脱時は最低限キャッシュ保存
-  window.addEventListener("beforeunload", () => {
-    if (getChangedItems_().length > 0) {
-      saveCacheNow();
-    }
-  });
 });
 
+function initUI() {
+  document.getElementById("roomLabel").textContent = ROOM_MAP[state.roomKey];
+  document.getElementById("toolbarContainer").classList.remove("hidden");
+  document.getElementById("bottomBar").classList.remove("hidden");
+
+  // 検索入力
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    state.query = e.target.value.trim().toLowerCase();
+    state.displayLimit = 50;
+    applyFilterAndRender();
+  });
+
+  // フィルタチップの切り替え
+  document.getElementById("filterArea").addEventListener("click", (e) => {
+    const chip = e.target.closest(".f-chip");
+    if (!chip) return;
+    document.querySelectorAll(".f-chip").forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    state.activeFilter = chip.dataset.filter;
+    state.displayLimit = 50;
+    applyFilterAndRender();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // リスト内のボタン操作
+  document.getElementById("list").addEventListener("click", handleCounter);
+  
+  // 送信・再取得
+  document.getElementById("sendBtn").addEventListener("click", sendData);
+  document.getElementById("reloadBtn").addEventListener("click", () => {
+    if(confirm("最新データを取得します。入力中の内容は上書きされますがよろしいですか？")) fetchLatestData();
+  });
+
+  // もっと見る
+  document.getElementById("loadMoreBtn").addEventListener("click", () => {
+    state.displayLimit += 50;
+    applyFilterAndRender();
+  });
+}
+
 /**
- * ==================================================================================
- * 5. 描画
- * ==================================================================================
+ * 描画・フィルタリング
  */
+function applyFilterAndRender() {
+  let list = state.items;
+
+  // フィルタ適用
+  if (state.activeFilter === "input") {
+    list = list.filter(item => item.qty > 0);
+  } else if (state.activeFilter !== "all") {
+    list = list.filter(item => item.subject === state.activeFilter);
+  }
+
+  // 検索適用
+  if (state.query) {
+    list = list.filter(item => item._searchTag.includes(state.query));
+  }
+
+  state.filteredItems = list;
+  state.visibleItems = list.slice(0, state.displayLimit);
+  
+  renderList();
+  updateStats();
+}
+
 function renderList() {
-  if (state.items.length === 0 && !state.isSyncing) {
-    listEl.innerHTML = `<div class="empty">データがありません。</div>`;
-    countInfoEl.textContent = "";
-    loadMoreWrapEl.classList.add("hidden");
-    return;
-  }
-
+  const container = document.getElementById("list");
   if (state.visibleItems.length === 0) {
-    listEl.innerHTML = `<div class="empty">該当する教材がありません。</div>`;
-    countInfoEl.textContent = `0件`;
-    loadMoreWrapEl.classList.add("hidden");
+    container.innerHTML = `<div class="empty">該当する教材が見つかりません</div>`;
+    document.getElementById("loadMoreWrap").classList.add("hidden");
     return;
   }
 
-  const fragments = state.visibleItems.map((item, index) => `
-    <div class="item ${item.qty > 0 ? 'has-qty' : ''}">
-      <div class="item-main">
+  container.innerHTML = state.visibleItems.map((item, idx) => `
+    <div class="item ${item.qty > 0 ? 'has-qty' : ''}" data-id="${item.id}">
+      <div class="item-info">
         <div class="item-top">
-          ${item.master ? `<span class="chip master">${escapeHtml(item.master)}</span>` : ""}
-          ${item.subject ? `<span class="chip subject">${escapeHtml(item.subject)}</span>` : ""}
+          <span class="chip subject">${escapeHtml(item.subject)}</span>
           <span class="chip">${escapeHtml(item.id)}</span>
         </div>
         <div class="item-name">${escapeHtml(item.name)}</div>
-        <div class="item-meta">
-          ${item.publisher ? `出版社: ${escapeHtml(item.publisher)}` : ""}
-        </div>
       </div>
       <div class="counter">
-        <button type="button" class="minus" data-index="${index}">－</button>
+        <button type="button" class="minus" data-idx="${idx}">－</button>
         <div class="qty">${item.qty}</div>
-        <button type="button" class="plus" data-index="${index}">＋</button>
+        <button type="button" class="plus" data-idx="${idx}">＋</button>
       </div>
     </div>
   `).join("");
 
-  listEl.innerHTML = fragments;
+  const hasMore = state.filteredItems.length > state.displayLimit;
+  document.getElementById("loadMoreWrap").classList.toggle("hidden", !hasMore);
+}
 
-  const total = state.filteredItems.length;
-  const visible = state.visibleItems.length;
+function updateStats() {
+  const changed = state.items.filter(item => (state.originalQtyMap[item.id] || 0) !== item.qty);
+  const totalQty = state.items.reduce((sum, item) => sum + item.qty, 0);
+  
+  document.getElementById("changeCount").textContent = changed.length;
+  document.getElementById("totalQty").textContent = totalQty;
+  
+  const sendBtn = document.getElementById("sendBtn");
+  sendBtn.classList.toggle("dirty", changed.length > 0);
+}
 
-  if (state.query) {
-    countInfoEl.textContent = `${total}件ヒット`;
-    loadMoreWrapEl.classList.add("hidden");
-  } else {
-    countInfoEl.textContent = `${visible} / ${total}件を表示`;
-    if (total > visible) {
-      loadMoreWrapEl.classList.remove("hidden");
-    } else {
-      loadMoreWrapEl.classList.add("hidden");
-    }
-  }
+function generateSubjectChips() {
+  const subjects = [...new Set(state.items.map(item => item.subject))].filter(Boolean).sort();
+  const container = document.getElementById("filterArea");
+  const baseChips = `<div class="f-chip ${state.activeFilter==='all'?'active':''}" data-filter="all">すべて</div>
+                     <div class="f-chip ${state.activeFilter==='input'?'active':''}" data-filter="input">入力済のみ</div>`;
+  container.innerHTML = baseChips + subjects.map(s => 
+    `<div class="f-chip ${state.activeFilter===s?'active':''}" data-filter="${escapeHtml(s)}">${escapeHtml(s)}</div>`
+  ).join("");
 }
 
 /**
- * ==================================================================================
- * 6. データ取得
- * ==================================================================================
+ * ユーザーアクション
+ */
+function handleCounter(e) {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+
+  const idx = parseInt(btn.dataset.idx);
+  const item = state.visibleItems[idx];
+  if (!item) return;
+
+  if (btn.classList.contains("plus")) item.qty++;
+  else if (btn.classList.contains("minus")) item.qty = Math.max(0, item.qty - 1);
+
+  // 部分DOM更新
+  const card = btn.closest(".item");
+  card.querySelector(".qty").textContent = item.qty;
+  card.classList.toggle("has-qty", item.qty > 0);
+  
+  updateStats();
+  saveCache();
+}
+
+/**
+ * 同期処理
  */
 async function fetchLatestData() {
   if (state.isSyncing) return;
-
   state.isSyncing = true;
-  setStatus("最新データ取得中...");
+  setStatus("最新データを取得中...");
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-    const [masterItems, inventoryRes] = await Promise.all([
+    const [masterRes, inventoryRes] = await Promise.all([
       fetchMasterCsv_(),
-      fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, {
-        method: "GET",
-        signal: controller.signal
-      })
+      fetch(`${GAS_URL}?room=${state.roomKey}`).then(r => r.json())
     ]);
 
-    const inventoryResult = await inventoryRes.json();
-    clearTimeout(timeoutId);
+    if (!inventoryRes.success) throw new Error(inventoryRes.message);
 
-    if (!inventoryResult.success) {
-      throw new Error(inventoryResult.message || "在庫データの取得に失敗しました");
-    }
+    const invMap = {};
+    inventoryRes.items.forEach(i => invMap[i.id] = i.qty);
 
-    const qtyMap = {};
-    (inventoryResult.items || []).forEach(item => {
-      const id = String(item.id || "").trim();
-      if (id) {
-        qtyMap[id] = Math.max(0, Number(item.qty || 0));
-      }
-    });
+    state.items = masterRes.map(m => ({
+      ...m,
+      qty: invMap[m.id] || 0,
+      _searchTag: `${m.id} ${m.name} ${m.subject} ${m.publisher}`.toLowerCase()
+    }));
 
-    state.items = normalizeItems(
-      masterItems.map(item => ({
-        ...item,
-        qty: qtyMap[item.id] || 0
-      }))
-    );
-
-    state.originalQtyMap = buildQtyMap(state.items);
-    saveCacheNow();
+    state.originalQtyMap = {...invMap};
+    generateSubjectChips();
     applyFilterAndRender();
-    setStatus(`同期完了（${formatTime_(new Date())}）`);
+    setStatus("同期完了");
   } catch (e) {
+    setStatus("取得エラー: " + e.message);
     console.error(e);
-    setStatus(`取得失敗: ${e.message}`);
   } finally {
     state.isSyncing = false;
   }
 }
 
-/**
- * ==================================================================================
- * 7. CSV読み込み・解析（Shift-JIS & 強力パース版）
- * ==================================================================================
- */
-async function fetchMasterCsv_() {
-  const cacheBuster = new Date().getTime();
-  const res = await fetch(`${MASTER_CSV_URL}?t=${cacheBuster}`, {
-    method: "GET",
-    cache: "no-store"
-  });
+async function sendData() {
+  const changed = state.items.filter(item => (state.originalQtyMap[item.id] || 0) !== item.qty);
+  if (changed.length === 0) return alert("送信する変更がありません");
 
-  if (!res.ok) throw new Error("教材マスタCSVの取得に失敗しました");
-
-  // Shift-JIS対応: バイナリで読み込んでからデコード
-  const buffer = await res.arrayBuffer();
-  const decoder = new TextDecoder("shift-jis");
-  const text = decoder.decode(buffer);
-  
-  return parseMasterCsv_(text);
-}
-
-function parseMasterCsv_(csvText) {
-  // BOM除去
-  const cleanText = csvText.replace(/^\ufeff/, "");
-  const rows = parseCsvText_(cleanText);
-  if (rows.length <= 1) return [];
-
-  // ヘッダーの前後空白と引用符を徹底除去
-  const header = rows[0].map(v => String(v || "").replace(/^["']|["']$/g, '').trim());
-  const idx = {
-    master: header.indexOf("マスタ区分"),
-    id: header.indexOf("商品コード"),
-    subject: header.indexOf("科目"),
-    name: header.indexOf("商品名"),
-    publisher: header.indexOf("出版社")
-  };
-
-  const missing = Object.entries(idx).filter(([, v]) => v === -1).map(([k]) => k);
-  if (missing.length > 0) {
-    throw new Error(`CSVヘッダー不足: ${missing.join(", ")}\n取得内容: ${header.join(" | ")}`);
-  }
-
-  return rows.slice(1)
-    .map(cols => {
-      const getVal = (i) => String(cols[i] || "").replace(/^["']|["']$/g, '').trim();
-      return {
-        master: getVal(idx.master),
-        id: getVal(idx.id),
-        subject: getVal(idx.subject),
-        name: getVal(idx.name),
-        publisher: getVal(idx.publisher)
-      };
-    })
-    .filter(item => item.id !== "");
-}
-
-function parseCsvText_(text) {
-  const rows = [];
-  const lines = text.split(/\r?\n/);
-  const firstLine = lines[0] || "";
-  const delimiter = firstLine.includes('\t') ? '\t' : ',';
-
-  for (let line of lines) {
-    if (!line.trim()) continue;
-    
-    let row = [];
-    if (delimiter === '\t') {
-      row = line.split('\t');
-    } else {
-      let value = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-          inQuotes = !inQuotes;
-        } else if (ch === "," && !inQuotes) {
-          row.push(value); value = "";
-        } else {
-          value += ch;
-        }
-      }
-      row.push(value);
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-/**
- * ==================================================================================
- * 8. フィルタ
- * ==================================================================================
- */
-function applyFilterAndRender() {
-  const q = state.query;
-  state.filteredItems = !q ? state.items : state.items.filter(item => item._searchTag.includes(q));
-  applyVisibleItems_();
-  renderList();
-}
-
-function applyVisibleItems_() {
-  state.visibleItems = state.query ? state.filteredItems : state.filteredItems.slice(0, state.displayLimit);
-}
-
-/**
- * ==================================================================================
- * 9. 送信処理
- * ==================================================================================
- */
-async function sendAllData() {
-  if (state.isSyncing) return;
-  if (!confirm("現在の変更内容を送信しますか？")) return;
-  const ok = await syncChanges_("manual");
-  if (ok) alert("送信が完了しました！");
-}
-
-async function syncChanges_(mode = "manual") {
-  if (state.isSyncing) return false;
-
-  const changedItems = getChangedItems_();
-  if (changedItems.length === 0) {
-    if (mode === "manual") alert("変更はありません。");
-    return false;
-  }
+  if (!confirm(`${changed.length}件の変更を保存します。よろしいですか？`)) return;
 
   state.isSyncing = true;
   const btn = document.getElementById("sendBtn");
-  if (btn) btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "送信中...";
 
   try {
-    saveCacheNow();
     const body = new URLSearchParams();
     body.append("room", state.roomKey);
-    body.append("changedItems", JSON.stringify(changedItems));
+    body.append("changedItems", JSON.stringify(changed.map(i => ({id:i.id, qty:i.qty}))));
 
-    const res = await fetch(GAS_URL, { method: "POST", body });
-    const result = await res.json();
-    if (!result.success) throw new Error(result.message || "送信失敗");
+    const res = await fetch(GAS_URL, { method: "POST", body }).then(r => r.json());
+    if (!res.success) throw new Error(res.message);
 
-    state.originalQtyMap = buildQtyMap(state.items);
-    saveCacheNow();
-    setStatus(`${mode === "manual" ? "送信" : "自動保存"}完了 / ${formatTime_(new Date())}`);
-    return true;
+    // 送信成功後、現在の値を「オリジナル」として保存
+    changed.forEach(i => state.originalQtyMap[i.id] = i.qty);
+    updateStats();
+    setStatus("送信が正常に完了しました");
+    alert("送信完了！");
   } catch (e) {
-    console.error(e);
-    setStatus(`失敗: ${e.message}`);
-    if (mode === "manual") alert(`エラー: ${e.message}`);
-    return false;
+    alert("送信に失敗しました: " + e.message);
   } finally {
     state.isSyncing = false;
-    if (btn) btn.disabled = false;
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
 /**
- * ==================================================================================
- * 10. ユーティリティ
- * ==================================================================================
+ * ユーティリティ
  */
-function normalizeItems(items) {
-  return items.map(item => {
-    const m = String(item.master || "").trim();
-    const id = String(item.id || "").trim();
-    const s = String(item.subject || "").trim();
-    const n = String(item.name || "").trim();
-    const p = String(item.publisher || "").trim();
+async function fetchMasterCsv_() {
+  const res = await fetch(`${MASTER_CSV_URL}?t=${Date.now()}`);
+  const buffer = await res.arrayBuffer();
+  return parseCsv_(new TextDecoder("shift-jis").decode(buffer));
+}
+
+function parseCsv_(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) return [];
+  const header = lines[0].split(",").map(s => s.replace(/"/g, "").trim());
+  const col = {
+    id: header.indexOf("商品コード"),
+    name: header.indexOf("商品名"),
+    subject: header.indexOf("科目"),
+    publisher: header.indexOf("出版社")
+  };
+
+  return lines.slice(1).map(line => {
+    const cells = line.split(",").map(s => s.replace(/"/g, "").trim());
     return {
-      master: m, id: id, subject: s, name: n, publisher: p,
-      qty: Math.max(0, Number(item.qty || 0)),
-      _searchTag: `${m} ${id} ${s} ${n} ${p}`.toLowerCase()
+      id: cells[col.id],
+      name: cells[col.name],
+      subject: cells[col.subject],
+      publisher: cells[col.publisher]
     };
-  }).filter(item => item.id !== "");
+  }).filter(i => i.id);
 }
 
-function buildQtyMap(items) {
-  const map = {};
-  items.forEach(item => { map[item.id] = item.qty; });
-  return map;
+function saveCache() {
+  localStorage.setItem(STORAGE_PREFIX + state.roomKey, JSON.stringify({
+    items: state.items,
+    ts: Date.now()
+  }));
 }
 
-function getChangedItems_() {
-  return state.items
-    .filter(item => (state.originalQtyMap[item.id] ?? 0) !== item.qty)
-    .map(item => ({ id: item.id, qty: item.qty }));
-}
-
-function updateDirtyStatus_() {
-  const count = getChangedItems_().length;
-  setStatus(count > 0 ? `未送信の変更あり（${count}件）` : "変更なし");
-}
-
-function scheduleCacheSave() {
-  if (cacheSaveTimer) clearTimeout(cacheSaveTimer);
-  cacheSaveTimer = setTimeout(() => saveCacheNow(), CACHE_SAVE_DELAY);
-}
-
-function saveCacheNow() {
-  const saveItems = state.items.map(({ _searchTag, ...rest }) => rest);
-  localStorage.setItem(STORAGE_PREFIX + state.roomKey, JSON.stringify({ items: saveItems }));
+function loadCache() {
+  const cached = localStorage.getItem(STORAGE_PREFIX + state.roomKey);
+  if (!cached) return;
+  const data = JSON.parse(cached);
+  state.items = data.items;
+  // 読み込み時点での変更をチェックするためstats更新
+  applyFilterAndRender();
 }
 
 function setStatus(msg) {
-  statusEl.textContent = `[${formatTime_(new Date())}] ${msg}`;
-}
-
-function formatTime_(date) {
-  return date.toLocaleTimeString("ja-JP");
+  const now = new Date().toLocaleTimeString("ja-JP", {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+  document.getElementById("statusLine").textContent = `[${now}] ${msg}`;
 }
 
 function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, m => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
-  }[m]));
+  return String(s || "").replace(/[&<>"']/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[m]));
+}
+
+function showGuide() {
+  const guide = document.getElementById("guide");
+  guide.classList.remove("hidden");
+  const links = document.getElementById("roomLinks");
+  Object.entries(ROOM_MAP).forEach(([key, name]) => {
+    const a = document.createElement("a");
+    a.href = `?room=${key}`;
+    a.textContent = name;
+    a.style = "display:block; padding:18px; margin:12px; background:#e8f0fe; color:#1a73e8; text-decoration:none; border-radius:12px; font-weight:800; text-align:center; font-size:16px;";
+    links.appendChild(a);
+  });
 }

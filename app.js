@@ -287,7 +287,7 @@ async function fetchLatestData() {
 
 /**
  * ==================================================================================
- * 7. CSV読み込み・解析
+ * Step 7. CSV読み込み・解析（ヘッダー判定強化版）
  * ==================================================================================
  */
 async function fetchMasterCsv_() {
@@ -304,15 +304,19 @@ async function fetchMasterCsv_() {
 }
 
 function parseMasterCsv_(csvText) {
-  // 【修正】BOM（目に見えない識別子）を除去
+  // 1. BOM（目に見えない識別子）を強制除去
   const cleanText = csvText.replace(/^\ufeff/, "");
   
+  // 2. CSVを配列に分解
   const rows = parseCsvText_(cleanText);
   if (rows.length <= 1) return [];
 
-  // 【修正】各ヘッダーから余分な引用符や空白を徹底的に除去
-  const header = rows[0].map(v => String(v || "").replace(/^"|"$/g, '').trim());
+  // 3. ヘッダー行の各項目から、前後にある " や 空白 をすべて削除して正規化
+  const header = rows[0].map(v => 
+    String(v || "").replace(/^["']|["']$/g, '').trim()
+  );
 
+  // 4. 正規化したヘッダーでインデックスを探す
   const idx = {
     master: header.indexOf("マスタ区分"),
     id: header.indexOf("商品コード"),
@@ -321,44 +325,62 @@ function parseMasterCsv_(csvText) {
     publisher: header.indexOf("出版社")
   };
 
-  // デバッグ用：もしエラーが出るならコンソールにヘッダーの中身を表示
-  console.log("読み取ったヘッダー:", header);
+  // デバッグ用（F12のコンソールで確認可能）
+  console.log("正規化済みヘッダー:", header);
 
-  const missing = Object.entries(idx).filter(([, v]) => v === -1).map(([k]) => k);
+  const missing = Object.entries(idx)
+    .filter(([, v]) => v === -1)
+    .map(([k]) => k);
+
   if (missing.length > 0) {
-    throw new Error(`CSVヘッダー不足: ${missing.join(", ")} / 取得済み: ${header.join("|")}`);
+    throw new Error(`CSVヘッダー不足: ${missing.join(", ")}\n取得内容: ${header.join(" | ")}`);
   }
 
+  // 5. データ行の処理（ここでも引用符を掃除）
   return rows.slice(1)
-    .map(cols => ({
-      master: String(cols[idx.master] || "").replace(/^"|"$/g, '').trim(),
-      id: String(cols[idx.id] || "").replace(/^"|"$/g, '').trim(),
-      subject: String(cols[idx.subject] || "").replace(/^"|"$/g, '').trim(),
-      name: String(cols[idx.name] || "").replace(/^"|"$/g, '').trim(),
-      publisher: String(cols[idx.publisher] || "").replace(/^"|"$/g, '').trim()
-    }))
+    .map(cols => {
+      const getVal = (i) => String(cols[i] || "").replace(/^["']|["']$/g, '').trim();
+      return {
+        master: getVal(idx.master),
+        id: getVal(idx.id),
+        subject: getVal(idx.subject),
+        name: getVal(idx.name),
+        publisher: getVal(idx.publisher)
+      };
+    })
     .filter(item => item.id !== "");
 }
 
+/**
+ * CSVパース本体（引用符内カンマ対応版）
+ */
 function parseCsvText_(text) {
   const rows = [];
-  let row = [];
-  let value = "";
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (ch === '"') {
-      if (inQuotes && next === '"') { value += '"'; i++; }
-      else { inQuotes = !inQuotes; }
-    } else if (ch === "," && !inQuotes) {
-      row.push(value); value = "";
-    } else if ((ch === "\n" || ch === "\r") && !inQuotes) {
-      if (ch === "\r" && next === "\n") i++;
-      row.push(value); rows.push(row); row = []; value = "";
-    } else { value += ch; }
+  const lines = text.split(/\r?\n/);
+  
+  for (let line of lines) {
+    if (!line.trim()) continue;
+    
+    const row = [];
+    let value = "";
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        // 引用符の中か外かを切り替え
+        inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        // 引用符の外にあるカンマなら区切り
+        row.push(value);
+        value = "";
+      } else {
+        value += ch;
+      }
+    }
+    row.push(value);
+    rows.push(row);
   }
-  if (value || row.length > 0) { row.push(value); rows.push(row); }
   return rows;
 }
 

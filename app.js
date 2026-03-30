@@ -1,21 +1,21 @@
 /**
  * ==================================================================================
- * 1. 定数・設定セクション
+ * 1. 定数・設定
  * ==================================================================================
  */
 
 // GAS Web AppのURL
-const APP_ID = "AKfycbx_u7dfc0xHyxOSQ64N3vNLkzqRO0uE-X8VGenwpQaSpX8_jas9ZbZHiQ1y4-Pw7L-ulA";
+const APP_ID = "AKfycbzaIU0s000fXEA5LvVBaWjmx4PrainLVSt_-mK-XkwKIgndqI4sysHOKJ1ByMiEIuMA1Q";
 const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 
-// ローカルストレージ用の名前空間
+// ローカルストレージ用
 const STORAGE_PREFIX = "inventory_cache_";
 
 // 表示件数
 const INITIAL_RENDER_COUNT = 50;
 const RENDER_STEP = 50;
 
-// キャッシュ保存の遅延時間
+// キャッシュ保存遅延
 const CACHE_SAVE_DELAY = 800;
 
 const ROOM_MAP = {
@@ -42,15 +42,14 @@ let state = {
   query: "",
   isSyncing: false,
   displayLimit: INITIAL_RENDER_COUNT,
-  updatedAt: "",
-  originalQtyMap: {} // 初回取得時点 or 送信成功時点の数量
+  originalQtyMap: {}
 };
 
 let cacheSaveTimer = null;
 
 /**
  * ==================================================================================
- * 3. 初期化
+ * 3. DOM参照
  * ==================================================================================
  */
 const roomLabelEl = document.getElementById("roomLabel");
@@ -63,6 +62,11 @@ const countInfoEl = document.getElementById("countInfo");
 const loadMoreWrapEl = document.getElementById("loadMoreWrap");
 const loadMoreBtnEl = document.getElementById("loadMoreBtn");
 
+/**
+ * ==================================================================================
+ * 4. 初期化
+ * ==================================================================================
+ */
 document.addEventListener("DOMContentLoaded", () => {
   state.roomKey = new URLSearchParams(window.location.search).get("room")?.toLowerCase();
 
@@ -76,17 +80,15 @@ document.addEventListener("DOMContentLoaded", () => {
   toolbarEl.classList.remove("hidden");
   guideEl.classList.add("hidden");
 
-  // キャッシュ表示
   const cached = localStorage.getItem(STORAGE_PREFIX + state.roomKey);
   if (cached) {
     try {
       const data = JSON.parse(cached);
       state.items = normalizeItems(data.items || []);
-      state.updatedAt = String(data.updatedAt || "");
       state.originalQtyMap = buildQtyMap(state.items);
 
       applyFilterAndRender();
-      setStatus(buildStatusMessage_("キャッシュを表示中（背後で同期中...）"));
+      setStatus("キャッシュを表示中（背後で同期中...）");
     } catch (e) {
       listEl.innerHTML = `<div class="empty">データを読み込んでいます...</div>`;
     }
@@ -103,7 +105,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("reloadBtn").addEventListener("click", () => {
-    if (confirm("最新データを再取得しますか？")) fetchLatestData(true);
+    if (confirm("最新データを再取得しますか？")) {
+      fetchLatestData(true);
+    }
   });
 
   document.getElementById("sendBtn").addEventListener("click", sendAllData);
@@ -145,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /**
  * ==================================================================================
- * 4. 描画・フィルタリング
+ * 5. 描画
  * ==================================================================================
  */
 function renderList() {
@@ -203,45 +207,60 @@ function renderList() {
 }
 
 /**
- * 最新データ取得
+ * ==================================================================================
+ * 6. データ取得
+ * ==================================================================================
  */
 async function fetchLatestData() {
   if (state.isSyncing) return;
+
   state.isSyncing = true;
   setStatus("最新データ取得中...");
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const [masterRes, inventoryRes] = await Promise.all([
-      fetch(`${GAS_URL}?type=master`),
-      fetch(`${GAS_URL}?type=inventory&room=${encodeURIComponent(state.roomKey)}`)
+      fetch(`${GAS_URL}?type=master`, { signal: controller.signal }),
+      fetch(`${GAS_URL}?type=inventory&room=${encodeURIComponent(state.roomKey)}`, { signal: controller.signal })
     ]);
 
     const masterResult = await masterRes.json();
     const inventoryResult = await inventoryRes.json();
 
-    if (!masterResult.success) throw new Error(masterResult.message || "マスタ取得失敗");
-    if (!inventoryResult.success) throw new Error(inventoryResult.message || "在庫取得失敗");
+    clearTimeout(timeoutId);
+
+    if (!masterResult.success) {
+      throw new Error(masterResult.message || "教材マスタの取得に失敗しました");
+    }
+    if (!inventoryResult.success) {
+      throw new Error(inventoryResult.message || "在庫データの取得に失敗しました");
+    }
 
     const qtyMap = {};
     (inventoryResult.items || []).forEach(item => {
-      qtyMap[item.id] = item.qty;
+      const id = String(item.id || "").trim();
+      if (!id) return;
+      qtyMap[id] = Math.max(0, Number(item.qty || 0));
     });
 
-    state.items = (masterResult.items || []).map(item => ({
-      master: String(item.master || "").trim(),
-      id: String(item.id || "").trim(),
-      subject: String(item.subject || "").trim(),
-      name: String(item.name || "").trim(),
-      publisher: String(item.publisher || "").trim(),
-      qty: Math.max(0, Number(qtyMap[item.id] || 0))
-    }));
+    state.items = normalizeItems(
+      (masterResult.items || []).map(item => ({
+        master: item.master || "",
+        id: item.id || "",
+        subject: item.subject || "",
+        name: item.name || "",
+        publisher: item.publisher || "",
+        qty: qtyMap[item.id] || 0
+      }))
+    );
 
-    state.updatedAt = String(inventoryResult.updatedAt || "");
     state.originalQtyMap = buildQtyMap(state.items);
 
     saveCacheNow();
     applyFilterAndRender();
-    setStatus(buildStatusMessage_("同期完了"));
+    setStatus(`同期完了（取得時刻: ${new Date().toLocaleTimeString()}）`);
   } catch (e) {
     console.error(e);
     setStatus(`取得失敗: ${e.message}`);
@@ -252,7 +271,9 @@ async function fetchLatestData() {
 }
 
 /**
- * 検索キーワードに基づいてフィルタ
+ * ==================================================================================
+ * 7. フィルタ
+ * ==================================================================================
  */
 function applyFilterAndRender() {
   const q = state.query.toLowerCase();
@@ -273,9 +294,6 @@ function applyFilterAndRender() {
   renderList();
 }
 
-/**
- * 表示上限に応じて visibleItems を更新
- */
 function applyVisibleItems_() {
   if (state.query) {
     state.visibleItems = state.filteredItems;
@@ -285,7 +303,9 @@ function applyVisibleItems_() {
 }
 
 /**
- * 差分送信
+ * ==================================================================================
+ * 8. 送信
+ * ==================================================================================
  */
 async function sendAllData() {
   const btn = document.getElementById("sendBtn");
@@ -294,7 +314,7 @@ async function sendAllData() {
   const changedItems = getChangedItems_();
   if (changedItems.length === 0) {
     alert("変更されたデータがありません。");
-    setStatus(buildStatusMessage_("未送信（変更なし）"));
+    setStatus("未送信（変更なし）");
     return;
   }
 
@@ -318,18 +338,19 @@ async function sendAllData() {
     }
 
     const result = await res.json();
-    if (!result.success) throw new Error(result.message || "送信失敗");
+    if (!result.success) {
+      throw new Error(result.message || "送信失敗");
+    }
 
-    state.updatedAt = String(result.updatedAt || "");
     state.originalQtyMap = buildQtyMap(state.items);
     saveCacheNow();
 
-    setStatus(buildStatusMessage_(`送信成功（${changedItems.length}件更新）`));
+    setStatus(`送信成功（${changedItems.length}件更新） / 送信時刻: ${new Date().toLocaleTimeString()}`);
     alert("送信完了！");
   } catch (e) {
     console.error(e);
     alert(`送信に失敗しました: ${e.message}`);
-    setStatus(buildStatusMessage_(`送信失敗: ${e.message}`));
+    setStatus(`送信失敗: ${e.message}`);
   } finally {
     btn.disabled = false;
   }
@@ -337,7 +358,7 @@ async function sendAllData() {
 
 /**
  * ==================================================================================
- * 5. ユーティリティ・キャッシュ関連
+ * 9. ユーティリティ
  * ==================================================================================
  */
 function normalizeItems(items) {
@@ -376,9 +397,9 @@ function getChangedItems_() {
 function updateDirtyStatus_() {
   const changedCount = getChangedItems_().length;
   if (changedCount > 0) {
-    setStatus(buildStatusMessage_(`未送信の変更あり（${changedCount}件）`));
+    setStatus(`未送信の変更あり（${changedCount}件）`);
   } else {
-    setStatus(buildStatusMessage_("変更なし"));
+    setStatus("変更なし");
   }
 }
 
@@ -393,8 +414,7 @@ function saveCacheNow() {
   localStorage.setItem(
     STORAGE_PREFIX + state.roomKey,
     JSON.stringify({
-      items: state.items,
-      updatedAt: state.updatedAt
+      items: state.items
     })
   );
 
@@ -402,20 +422,6 @@ function saveCacheNow() {
     clearTimeout(cacheSaveTimer);
     cacheSaveTimer = null;
   }
-}
-
-function buildStatusMessage_(message) {
-  if (state.updatedAt) {
-    return `${message} / 最終更新: ${formatDateTime_(state.updatedAt)}`;
-  }
-  return message;
-}
-
-function formatDateTime_(isoString) {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return isoString;
-  return d.toLocaleString("ja-JP");
 }
 
 function setStatus(msg) {

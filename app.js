@@ -293,15 +293,13 @@ async function sendAllData() {
   setStatus(`送信中...（${changedItems.length}件）`);
 
   try {
+    const body = new URLSearchParams();
+    body.append("room", state.roomKey);
+    body.append("changedItems", JSON.stringify(changedItems));
+
     const res = await fetch(GAS_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify({
-        room: state.roomKey,
-        changedItems: changedItems
-      })
+      body: body
     });
 
     if (!res.ok) {
@@ -325,6 +323,7 @@ async function sendAllData() {
     btn.disabled = false;
   }
 }
+
 /**
  * ==================================================================================
  * 5. ユーティリティ・キャッシュ関連

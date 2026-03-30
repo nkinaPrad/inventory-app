@@ -295,12 +295,18 @@ async function sendAllData() {
   try {
     const res = await fetch(GAS_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
       body: JSON.stringify({
         room: state.roomKey,
         changedItems: changedItems
       })
     });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
 
     const result = await res.json();
     if (!result.success) throw new Error(result.message || "送信失敗");
@@ -313,13 +319,12 @@ async function sendAllData() {
     alert("送信完了！");
   } catch (e) {
     console.error(e);
-    alert("送信に失敗しました。電波の良い所で再度お試しください。");
-    setStatus(buildStatusMessage_("送信失敗"));
+    alert(`送信に失敗しました: ${e.message}`);
+    setStatus(buildStatusMessage_(`送信失敗: ${e.message}`));
   } finally {
     btn.disabled = false;
   }
 }
-
 /**
  * ==================================================================================
  * 5. ユーティリティ・キャッシュ関連

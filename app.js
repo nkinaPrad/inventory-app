@@ -304,10 +304,15 @@ async function fetchMasterCsv_() {
 }
 
 function parseMasterCsv_(csvText) {
-  const rows = parseCsvText_(csvText);
+  // 【修正】BOM（目に見えない識別子）を除去
+  const cleanText = csvText.replace(/^\ufeff/, "");
+  
+  const rows = parseCsvText_(cleanText);
   if (rows.length <= 1) return [];
 
-  const header = rows[0].map(v => String(v || "").trim());
+  // 【修正】各ヘッダーから余分な引用符や空白を徹底的に除去
+  const header = rows[0].map(v => String(v || "").replace(/^"|"$/g, '').trim());
+
   const idx = {
     master: header.indexOf("マスタ区分"),
     id: header.indexOf("商品コード"),
@@ -316,16 +321,21 @@ function parseMasterCsv_(csvText) {
     publisher: header.indexOf("出版社")
   };
 
+  // デバッグ用：もしエラーが出るならコンソールにヘッダーの中身を表示
+  console.log("読み取ったヘッダー:", header);
+
   const missing = Object.entries(idx).filter(([, v]) => v === -1).map(([k]) => k);
-  if (missing.length > 0) throw new Error(`CSVヘッダー不足: ${missing.join(", ")}`);
+  if (missing.length > 0) {
+    throw new Error(`CSVヘッダー不足: ${missing.join(", ")} / 取得済み: ${header.join("|")}`);
+  }
 
   return rows.slice(1)
     .map(cols => ({
-      master: String(cols[idx.master] || "").trim(),
-      id: String(cols[idx.id] || "").trim(),
-      subject: String(cols[idx.subject] || "").trim(),
-      name: String(cols[idx.name] || "").trim(),
-      publisher: String(cols[idx.publisher] || "").trim()
+      master: String(cols[idx.master] || "").replace(/^"|"$/g, '').trim(),
+      id: String(cols[idx.id] || "").replace(/^"|"$/g, '').trim(),
+      subject: String(cols[idx.subject] || "").replace(/^"|"$/g, '').trim(),
+      name: String(cols[idx.name] || "").replace(/^"|"$/g, '').trim(),
+      publisher: String(cols[idx.publisher] || "").replace(/^"|"$/g, '').trim()
     }))
     .filter(item => item.id !== "");
 }

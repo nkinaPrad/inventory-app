@@ -11,7 +11,6 @@ const GAS_URL = `https://script.google.com/macros/s/${APP_ID}/exec`;
 // GitHub上に置く教材マスタCSV
 const MASTER_CSV_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/master.csv";
 
-
 const STORAGE_PREFIX = "inventory_cache_";
 const INITIAL_RENDER_COUNT = 50;
 const RENDER_STEP = 50;
@@ -115,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 再取得
   document.getElementById("reloadBtn").addEventListener("click", () => {
     if (confirm("最新データを再取得しますか？")) {
-      fetchLatestData(true);
+      fetchLatestData();
     }
   });
 
@@ -288,18 +287,17 @@ async function fetchLatestData() {
 
 /**
  * ==================================================================================
- * 7. CSV読み込み
+ * 7. CSV読み込み・解析
  * ==================================================================================
  */
 async function fetchMasterCsv_() {
-  const res = await fetch(MASTER_CSV_URL, {
+  const cacheBuster = new Date().getTime();
+  const res = await fetch(`${MASTER_CSV_URL}?t=${cacheBuster}`, {
     method: "GET",
     cache: "no-store"
   });
 
-  if (!res.ok) {
-    throw new Error("教材マスタCSVの取得に失敗しました");
-  }
+  if (!res.ok) throw new Error("教材マスタCSVの取得に失敗しました");
 
   const text = await res.text();
   return parseMasterCsv_(text);
@@ -310,7 +308,6 @@ function parseMasterCsv_(csvText) {
   if (rows.length <= 1) return [];
 
   const header = rows[0].map(v => String(v || "").trim());
-
   const idx = {
     master: header.indexOf("マスタ区分"),
     id: header.indexOf("商品コード"),
@@ -319,15 +316,8 @@ function parseMasterCsv_(csvText) {
     publisher: header.indexOf("出版社")
   };
 
-  const missingHeaders = Object.entries(idx)
-    .filter(([, value]) => value === -1)
-    .map(([key]) => key);
-
-  if (missingHeaders.length > 0) {
-    throw new Error(
-      `CSVヘッダーが不足しています: ${missingHeaders.join(", ")} / 期待する1行目: マスタ区分, 商品コード, 科目, 商品名, 出版社`
-    );
-  }
+  const missing = Object.entries(idx).filter(([, v]) => v === -1).map(([k]) => k);
+  if (missing.length > 0) throw new Error(`CSVヘッダー不足: ${missing.join(", ")}`);
 
   return rows.slice(1)
     .map(cols => ({
@@ -345,40 +335,21 @@ function parseCsvText_(text) {
   let row = [];
   let value = "";
   let inQuotes = false;
-
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
-
     if (ch === '"') {
-      if (inQuotes && next === '"') {
-        value += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
+      if (inQuotes && next === '"') { value += '"'; i++; }
+      else { inQuotes = !inQuotes; }
     } else if (ch === "," && !inQuotes) {
-      row.push(value);
-      value = "";
+      row.push(value); value = "";
     } else if ((ch === "\n" || ch === "\r") && !inQuotes) {
       if (ch === "\r" && next === "\n") i++;
-      row.push(value);
-      rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += ch;
-    }
+      row.push(value); rows.push(row); row = []; value = "";
+    } else { value += ch; }
   }
-
-  if (value.length > 0 || row.length > 0) {
-    row.push(value);
-    rows.push(row);
-  }
-
-  return rows
-    .map(r => r.map(v => String(v || "").trim()))
-    .filter(r => r.some(v => v !== ""));
+  if (value || row.length > 0) { row.push(value); rows.push(row); }
+  return rows;
 }
 
 /**
@@ -388,103 +359,62 @@ function parseCsvText_(text) {
  */
 function applyFilterAndRender() {
   const q = state.query;
-
-  if (!q) {
-    state.filteredItems = state.items;
-  } else {
-    state.filteredItems = state.items.filter(item => item._searchTag.includes(q));
-  }
-
+  state.filteredItems = !q ? state.items : state.items.filter(item => item._searchTag.includes(q));
   applyVisibleItems_();
   renderList();
 }
 
 function applyVisibleItems_() {
-  if (state.query) {
-    state.visibleItems = state.filteredItems;
-  } else {
-    state.visibleItems = state.filteredItems.slice(0, state.displayLimit);
-  }
+  state.visibleItems = state.query ? state.filteredItems : state.filteredItems.slice(0, state.displayLimit);
 }
 
 /**
  * ==================================================================================
- * 9. 送信
+ * 9. 送信処理
  * ==================================================================================
  */
 async function sendAllData() {
-  if (!confirm("送信しますか？")) return;
-
+  if (state.isSyncing) return;
+  if (!confirm("現在の変更内容を送信しますか？")) return;
   const ok = await syncChanges_("manual");
-  if (ok) {
-    alert("送信完了！");
-  }
+  if (ok) alert("送信が完了しました！");
 }
 
 async function syncChanges_(mode = "manual") {
-  if (state.isSyncing && mode === "manual") return false;
+  if (state.isSyncing) return false;
 
   const changedItems = getChangedItems_();
   if (changedItems.length === 0) {
-    if (mode === "manual") {
-      alert("変更はありません。");
-    }
+    if (mode === "manual") alert("変更はありません。");
     return false;
   }
 
-  saveCacheNow();
-
+  state.isSyncing = true;
   const btn = document.getElementById("sendBtn");
-  if (mode === "manual") {
-    btn.disabled = true;
-  }
-
-  setStatus(
-    mode === "manual"
-      ? `送信中...（${changedItems.length}件）`
-      : `自動保存中...（${changedItems.length}件）`
-  );
+  if (btn) btn.disabled = true;
 
   try {
+    saveCacheNow();
     const body = new URLSearchParams();
     body.append("room", state.roomKey);
     body.append("changedItems", JSON.stringify(changedItems));
 
-    const res = await fetch(GAS_URL, {
-      method: "POST",
-      body
-    });
-
+    const res = await fetch(GAS_URL, { method: "POST", body });
     const result = await res.json();
-
-    if (!result.success) {
-      throw new Error(result.message || "送信失敗");
-    }
+    if (!result.success) throw new Error(result.message || "送信失敗");
 
     state.originalQtyMap = buildQtyMap(state.items);
-    state.lastAutoSaveAt = Date.now();
     saveCacheNow();
-
-    setStatus(
-      mode === "manual"
-        ? `送信成功 / ${formatTime_(new Date())}`
-        : `自動保存完了 / ${formatTime_(new Date())}`
-    );
-
+    setStatus(`${mode === "manual" ? "送信" : "自動保存"}完了 / ${formatTime_(new Date())}`);
     return true;
   } catch (e) {
     console.error(e);
-    setStatus(`${mode === "manual" ? "送信" : "自動保存"}失敗: ${e.message}`);
-
-    if (mode === "manual") {
-      alert(`送信に失敗しました: ${e.message}`);
-    }
-
+    setStatus(`失敗: ${e.message}`);
+    if (mode === "manual") alert(`エラー: ${e.message}`);
     return false;
   } finally {
-    if (mode === "manual") {
-      btn.disabled = false;
-    }
+    state.isSyncing = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -500,13 +430,8 @@ function normalizeItems(items) {
     const s = String(item.subject || "").trim();
     const n = String(item.name || "").trim();
     const p = String(item.publisher || "").trim();
-
     return {
-      master: m,
-      id: id,
-      subject: s,
-      name: n,
-      publisher: p,
+      master: m, id: id, subject: s, name: n, publisher: p,
       qty: Math.max(0, Number(item.qty || 0)),
       _searchTag: `${m} ${id} ${s} ${n} ${p}`.toLowerCase()
     };
@@ -515,22 +440,14 @@ function normalizeItems(items) {
 
 function buildQtyMap(items) {
   const map = {};
-  items.forEach(item => {
-    map[item.id] = item.qty;
-  });
+  items.forEach(item => { map[item.id] = item.qty; });
   return map;
 }
 
 function getChangedItems_() {
   return state.items
-    .filter(item => {
-      const original = state.originalQtyMap[item.id] ?? 0;
-      return item.qty !== original;
-    })
-    .map(item => ({
-      id: item.id,
-      qty: item.qty
-    }));
+    .filter(item => (state.originalQtyMap[item.id] ?? 0) !== item.qty)
+    .map(item => ({ id: item.id, qty: item.qty }));
 }
 
 function updateDirtyStatus_() {
@@ -545,10 +462,7 @@ function scheduleCacheSave() {
 
 function saveCacheNow() {
   const saveItems = state.items.map(({ _searchTag, ...rest }) => rest);
-  localStorage.setItem(
-    STORAGE_PREFIX + state.roomKey,
-    JSON.stringify({ items: saveItems })
-  );
+  localStorage.setItem(STORAGE_PREFIX + state.roomKey, JSON.stringify({ items: saveItems }));
 }
 
 function setStatus(msg) {
@@ -561,10 +475,6 @@ function formatTime_(date) {
 
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, m => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#039;"
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
   }[m]));
 }

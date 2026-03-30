@@ -33,12 +33,35 @@
       padding: 0;
     }
 
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
     body {
       background: linear-gradient(180deg, #f7f9fc 0%, #f2f5f9 100%);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN",
+        "Yu Gothic",
+        "Yu Gothic UI",
+        "Meiryo",
+        "Segoe UI",
+        sans-serif;
+      font-weight: 500;
+      line-height: 1.5;
+      font-feature-settings: "palt" 1;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
       -webkit-tap-highlight-color: transparent;
       padding-bottom: 116px;
+    }
+
+    .num {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
     }
 
     .shell {
@@ -98,7 +121,7 @@
     .title {
       margin: 0;
       font-size: 22px;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: 0.01em;
     }
 
@@ -106,6 +129,7 @@
       margin-top: 4px;
       font-size: 12px;
       color: var(--sub);
+      font-weight: 500;
     }
 
     .room-badge {
@@ -115,7 +139,7 @@
       background: var(--primary-soft);
       color: var(--primary);
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 700;
       border: 1px solid #bfdbfe;
     }
 
@@ -135,7 +159,7 @@
 
     .toolbar-grid {
       display: grid;
-      grid-template-columns: 1.4fr 1fr;
+      grid-template-columns: 1fr;
       gap: 12px;
       align-items: start;
     }
@@ -154,6 +178,7 @@
       border-radius: 14px;
       padding: 0 16px;
       font-size: 15px;
+      font-weight: 500;
       outline: none;
       background: #fff;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -184,10 +209,11 @@
       border-radius: 999px;
       padding: 8px 14px;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 600;
       cursor: pointer;
       line-height: 1;
       transition: all 0.15s ease;
+      white-space: nowrap;
     }
 
     .f-chip:hover {
@@ -201,12 +227,41 @@
       color: #fff;
       box-shadow: 0 8px 20px rgba(37, 99, 235, 0.24);
     }
-    
-    .status-line {
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: center;
       margin-top: 10px;
       font-size: 11px;
       color: var(--sub);
-      text-align: right;
+      line-height: 1.5;
+    }
+
+    .meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .meta-label {
+      color: var(--sub);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .meta-value {
+      color: #475467;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .status-line {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--sub);
       min-height: 14px;
     }
 
@@ -260,7 +315,7 @@
       border-radius: 999px;
       padding: 4px 8px;
       font-size: 10px;
-      font-weight: 800;
+      font-weight: 700;
       line-height: 1.2;
       white-space: nowrap;
     }
@@ -282,14 +337,15 @@
 
     .item-name {
       font-size: 17px;
-      font-weight: 800;
-      line-height: 1.45;
+      font-weight: 700;
+      line-height: 1.5;
       margin-bottom: 6px;
       word-break: break-word;
     }
+
     .qty-box {
       display: inline-grid;
-      grid-template-columns: 48px 54px 48px;
+      grid-template-columns: 46px 56px 46px;
       align-items: center;
       justify-items: center;
       border: 1px solid var(--line);
@@ -301,13 +357,13 @@
     }
 
     .qty-btn {
-      width: 48px;
-      height: 48px;
+      width: 46px;
+      height: 46px;
       border: none;
       background: #f8fafc;
       color: #111827;
       border-radius: 12px;
-      font-size: 28px;
+      font-size: 26px;
       line-height: 1;
       cursor: pointer;
       transition: transform 0.12s ease, background 0.12s ease;
@@ -322,10 +378,10 @@
     }
 
     .qty-num {
-      min-width: 54px;
+      min-width: 56px;
       text-align: center;
-      font-size: 24px;
-      font-weight: 800;
+      font-size: 22px;
+      font-weight: 700;
       color: #111827;
     }
 
@@ -369,7 +425,7 @@
     .summary-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 16px 20px;
+      gap: 14px 20px;
       align-items: center;
     }
 
@@ -382,12 +438,12 @@
     .summary-label {
       font-size: 12px;
       color: var(--sub);
-      font-weight: 700;
+      font-weight: 600;
     }
 
     .summary-value {
       font-size: 24px;
-      font-weight: 800;
+      font-weight: 700;
       color: #111827;
       line-height: 1;
     }
@@ -395,7 +451,7 @@
     .summary-unit {
       font-size: 12px;
       color: var(--sub);
-      font-weight: 700;
+      font-weight: 600;
     }
 
     .btn-main {
@@ -406,7 +462,7 @@
       background: var(--primary);
       color: #fff;
       font-size: 16px;
-      font-weight: 800;
+      font-weight: 700;
       cursor: pointer;
       transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
       box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
@@ -429,8 +485,8 @@
     }
 
     @media (max-width: 960px) {
-      .toolbar-grid {
-        grid-template-columns: 1fr;
+      .title {
+        font-size: 20px;
       }
     }
 
@@ -447,21 +503,100 @@
         flex-direction: column;
       }
 
+      .title-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        font-size: 18px;
+      }
+
+      .title {
+        font-size: 18px;
+      }
+
+      .subtitle {
+        font-size: 11px;
+      }
+
+      .toolbar-card {
+        padding: 12px;
+      }
+
+      .search-input {
+        height: 44px;
+        font-size: 14px;
+      }
+
+      .meta-row {
+        gap: 6px 12px;
+        font-size: 10px;
+      }
+
       .item {
         grid-template-columns: 1fr;
-        gap: 14px;
+        gap: 12px;
+        padding: 14px;
+      }
+
+      .item-name {
+        font-size: 15px;
       }
 
       .qty-box {
-        justify-self: end;
+        justify-self: stretch;
+        grid-template-columns: 44px 1fr 44px;
+        width: 100%;
+      }
+
+      .qty-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+      }
+
+      .qty-num {
+        min-width: 0;
+        width: 100%;
+        font-size: 20px;
       }
 
       .bottom-inner {
         grid-template-columns: 1fr;
       }
 
+      .summary-grid {
+        justify-content: space-between;
+      }
+
+      .summary-value {
+        font-size: 22px;
+      }
+
       .btn-main {
         width: 100%;
+      }
+    }
+
+    @media (max-width: 420px) {
+      body {
+        padding-bottom: 132px;
+      }
+
+      .summary-grid {
+        gap: 10px 14px;
+      }
+
+      .summary-label,
+      .summary-unit {
+        font-size: 11px;
+      }
+
+      .summary-value {
+        font-size: 20px;
+      }
+
+      .badge {
+        font-size: 9px;
       }
     }
   </style>
@@ -495,6 +630,21 @@
           </div>
         </div>
 
+        <div class="meta-row">
+          <div class="meta-item">
+            <span class="meta-label">取得件数</span>
+            <span id="totalCount" class="meta-value num">0件</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">表示件数</span>
+            <span id="visibleCount" class="meta-value num">0件</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">最終更新（送信）日時</span>
+            <span id="updatedAt" class="meta-value num">-</span>
+          </div>
+        </div>
+
         <div id="statusLine" class="status-line"></div>
       </div>
     </div>
@@ -511,12 +661,12 @@
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-label">変更件数</span>
-          <span id="changeCount" class="summary-value">0</span>
+          <span id="changeCount" class="summary-value num">0</span>
           <span class="summary-unit">件</span>
         </div>
         <div class="summary-item">
           <span class="summary-label">合計部数</span>
-          <span id="totalQty" class="summary-value">0</span>
+          <span id="totalQty" class="summary-value num">0</span>
           <span class="summary-unit">部</span>
         </div>
       </div>

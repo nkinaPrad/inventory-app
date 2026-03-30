@@ -1,7 +1,7 @@
 /**
  * 定数・設定
  */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxkoURHI0M-TivL8u8GfholmM7ozyqz1BkTxHq3K_y0z3EJl9o7PqMlCnI1c8DsRgvlbA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwngbo2pCFZxAz5jJ9FjloOgjIixpt_SM1ZxTcs0-Bph2lXF1sqKgG8c86Fyq1_ZGLNdA/exec";
 const ROOM_MAP = {
   "takadanobaba": "高田馬場", "sugamo": "巣鴨", "nishinippori": "西日暮里",
   "ohji": "王子", "itabashi": "板橋", "minamisenju": "南千住",
@@ -31,10 +31,12 @@ function initUI() {
   document.getElementById("roomLabel").textContent = ROOM_MAP[state.roomKey];
   document.getElementById("toolbarContainer").classList.remove("hidden");
   document.getElementById("bottomBar").classList.remove("hidden");
+  
   document.getElementById("searchInput").addEventListener("input", (e) => {
     state.query = e.target.value.trim().toLowerCase();
     state.displayLimit = 50; applyFilterAndRender();
   });
+  
   document.getElementById("filterArea").addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip");
     if (!chip) return;
@@ -44,6 +46,7 @@ function initUI() {
     state.displayLimit = 50; applyFilterAndRender();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
+  
   document.getElementById("list").addEventListener("click", handleCounter);
   document.getElementById("sendBtn").addEventListener("click", sendData);
   document.getElementById("loadMoreBtn").addEventListener("click", () => {
@@ -51,25 +54,25 @@ function initUI() {
   });
 }
 
+/**
+ * データの取得と「画面への時間出力」
+ */
 async function fetchLatestData() {
   if (state.isSyncing) return;
   state.isSyncing = true;
   
-  // 計測開始
-  const startTime = performance.now();
-  setStatus("同期中...");
+  const startTime = performance.now(); // 計測開始
+  setStatus("データ取得中...");
 
   try {
-    // 1. 通信時間の計測
     const fetchStart = performance.now();
     const response = await fetch(`${GAS_URL}?room=${state.roomKey}`);
     const fetchEnd = performance.now();
-    const fetchDuration = ((fetchEnd - fetchStart) / 1000).toFixed(2); // 秒単位
+    const fetchDuration = ((fetchEnd - fetchStart) / 1000).toFixed(2);
 
     const res = await response.json();
     if (!res.success) throw new Error(res.message);
 
-    // 2. データ加工・描画時間の計測
     const renderStart = performance.now();
     
     state.items = res.items.map(m => ({
@@ -86,14 +89,11 @@ async function fetchLatestData() {
     const renderDuration = ((renderEnd - renderStart) / 1000).toFixed(2);
     const totalDuration = ((renderEnd - startTime) / 1000).toFixed(2);
 
-    // 詳細な計測結果を表示
-    setStatus(`完了: 合計${totalDuration}s (通信:${fetchDuration}s / 描画:${renderDuration}s)`);
-    
-    console.log(`[Performance] Total: ${totalDuration}s, Fetch: ${fetchDuration}s, Render: ${renderDuration}s`);
+    // ★ ここで画面のステータス行に秒数を書き込みます
+    setStatus(`完了: ${totalDuration}秒 (通信:${fetchDuration}s / 描画:${renderDuration}s)`);
 
   } catch (e) {
     setStatus("取得エラー: " + e.message);
-    console.error(e);
   } finally {
     state.isSyncing = false;
   }
@@ -112,6 +112,7 @@ function applyFilterAndRender() {
   if (state.activeFilter === "input") list = list.filter(item => item.qty > 0);
   else if (state.activeFilter !== "all") list = list.filter(item => item.category === state.activeFilter);
   if (state.query) list = list.filter(item => item._searchTag.includes(state.query));
+  
   state.filteredItems = list;
   state.visibleItems = list.slice(0, state.displayLimit);
   renderList(); updateStats();

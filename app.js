@@ -4,7 +4,7 @@
  * =========================
  */
 const GITHUB_JSON_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/data.json";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwGpVcKNKF37BSK4R753H47seU4HfN4TJ4yn2tNn0J-vvqod0Oash2aJd2FhzHQ0_taUA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzcxHCv5cbaggJwl8sfNWQ1oCQZh5t5xRfza7SeH-UkXJKahPRJBD2LprQeBoZnYEmi6g/exec";
 
 const ROOM_LABEL_MAP = {
   takadanobaba: "高田馬場",

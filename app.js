@@ -118,11 +118,11 @@ async function loadAppData() {
   setStatus("データ同期中...");
 
   try {
-    if (!Array.isArray(window.MASTER_DATA) || window.MASTER_DATA.length === 0) {
+    if (!Array.isArray(MASTER_DATA) || MASTER_DATA.length === 0) {
       throw new Error("data.js の読み込みに失敗しました。");
     }
-
-    const masterData = window.MASTER_DATA;
+    
+    const masterData = MASTER_DATA;
     let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
 
     if (state.roomKey) {

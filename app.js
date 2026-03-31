@@ -45,7 +45,6 @@ const state = {
   totalQty: 0,
   dirtyCount: 0,
   originalSnapshotMap: Object.create(null),
-  lastUpdatedAt: "",
   visibleCount: INITIAL_VISIBLE_COUNT,
   autoSaveTimerId: null,
   lastStatusMessage: ""
@@ -79,8 +78,16 @@ function initUI() {
   const list = document.getElementById("list");
 
   if (roomLabelEl) {
+    const isLocal =
+      location.protocol === "file:" ||
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1";
+
     if (state.roomKey && state.roomLabel) {
       roomLabelEl.textContent = state.roomLabel;
+    } else if (isLocal) {
+      roomLabelEl.textContent = "ローカル確認用";
+      roomLabelEl.classList.add("muted");
     } else {
       roomLabelEl.textContent = "閲覧モード";
       roomLabelEl.classList.add("muted");
@@ -115,7 +122,15 @@ function initUI() {
   document.getElementById("toolMenuBtn")?.addEventListener("click", openToolMenu);
   document.getElementById("closeToolMenuBtn")?.addEventListener("click", closeToolMenu);
 
-  document.getElementById("menuAddCustomBtn")?.addEventListener("click", () => {
+  document.getElementById("customQtyMinus")?.addEventListener("click", () => {
+    changeCustomQty(-1);
+  });
+
+  document.getElementById("customQtyPlus")?.addEventListener("click", () => {
+    changeCustomQty(1);
+  });
+
+  document.getElementById("toolMenuBtnAddCustom")?.addEventListener("click", () => {
     closeToolMenu();
     openCustomDialog();
   });
@@ -123,11 +138,6 @@ function initUI() {
   document.getElementById("exportJsonBtn")?.addEventListener("click", () => {
     closeToolMenu();
     exportJsonBackup();
-  });
-
-  document.getElementById("exportCsvBtn")?.addEventListener("click", () => {
-    closeToolMenu();
-    exportCsvBackup();
   });
 
   document.getElementById("importJsonBtn")?.addEventListener("click", () => {
@@ -144,7 +154,6 @@ function initUI() {
   attachDialogBackdropClose("customItemDialog");
 
   updateStatsUI();
-  updateMetaInfo();
 }
 
 /**
@@ -191,6 +200,9 @@ function closeToolMenu() {
  */
 function openCustomDialog() {
   const dialog = document.getElementById("customItemDialog");
+  const qtyDisplay = document.getElementById("customQtyValue");
+
+  if (qtyDisplay) qtyDisplay.textContent = "1";
   if (dialog && !dialog.open) dialog.showModal();
 }
 
@@ -214,7 +226,7 @@ async function loadAppData() {
     }
 
     const masterData = MASTER_DATA;
-    let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
+    let invData = { success: true, inventory: {}, extraItems: [] };
 
     if (state.roomKey) {
       const invRes = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, {
@@ -249,8 +261,6 @@ async function loadAppData() {
         </div>
       `;
     }
-
-    updateMetaInfo();
   }
 }
 
@@ -258,7 +268,6 @@ function buildStateFromServer(masterData, invData) {
   const inventory = invData.inventory || {};
   const extraItems = Array.isArray(invData.extraItems) ? invData.extraItems : [];
 
-  state.lastUpdatedAt = invData.updatedAt || "";
   state.items = [];
   state.itemsById = new Map();
   state.filteredItems = [];
@@ -365,12 +374,12 @@ function generateCategoryChips() {
 
   const categories = Array.from(
     new Set(state.items.map(item => item.category).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b, "ja"));
+  );
 
   let html = "";
   html += `<button type="button" class="f-chip active" data-filter="all">すべて</button>`;
   html += `<button type="button" class="f-chip" data-filter="input">入力済み</button>`;
-  html += `<button type="button" class="f-chip" data-filter="custom">マスタ外</button>`;
+  html += `<button type="button" class="f-chip" data-filter="custom">未登録・旧版</button>`;
 
   for (let i = 0; i < categories.length; i++) {
     const c = categories[i];
@@ -400,17 +409,9 @@ function applyFilterAndRender() {
     result.push(item);
   }
 
-  result.sort(compareItems_);
   state.filteredItems = result;
 
   renderFilteredItems();
-  updateMetaInfo();
-}
-
-function compareItems_(a, b) {
-  if (a.isCustom !== b.isCustom) return a.isCustom ? -1 : 1;
-  if (a.category !== b.category) return a.category.localeCompare(b.category, "ja");
-  return a.name.localeCompare(b.name, "ja");
 }
 
 function renderFilteredItems() {
@@ -421,7 +422,6 @@ function renderFilteredItems() {
 
   if (state.filteredItems.length === 0) {
     container.innerHTML = `<div class="empty">該当する教材がありません。</div>`;
-    updateMetaInfo();
     return;
   }
 
@@ -437,7 +437,6 @@ function renderFilteredItems() {
   }
 
   container.innerHTML = html;
-  updateMetaInfo();
 }
 
 function renderItemHTML(item) {
@@ -451,9 +450,8 @@ function renderItemHTML(item) {
           <span class="badge badge-cat">${escapeHtml(item.category || "未分類")}</span>
           ${item.subject ? `<span class="badge badge-sub">${escapeHtml(item.subject)}</span>` : ""}
           ${item.isCustom ? `<span class="badge badge-custom">マスタ外</span>` : ""}
+          ${item.publisher ? `<span class="badge badge-publisher">${escapeHtml(item.publisher)}</span>` : ""}
         </div>
-
-        ${item.publisher ? `<div class="item-publisher-top">${escapeHtml(item.publisher)}</div>` : ""}
 
         <div class="item-name">${escapeHtml(item.name)}</div>
 
@@ -489,6 +487,17 @@ function renderLoadMoreHTML() {
  * 数量操作
  * =========================
  */
+ 
+ function changeCustomQty(diff) {
+  const qtyEl = document.getElementById("customQtyValue");
+  if (!qtyEl) return;
+
+  const current = Math.max(0, Number(qtyEl.textContent) || 0);
+  const next = Math.max(0, current + diff);
+
+  qtyEl.textContent = String(next);
+}
+ 
 function handleListClick(e) {
   const loadMoreBtn = e.target.closest("#loadMoreBtn");
   if (loadMoreBtn) {
@@ -538,7 +547,6 @@ function handleCounterClick(e) {
     return;
   }
 
-  updateMetaInfo();
   setStatus("未保存の変更があります");
 }
 
@@ -595,13 +603,6 @@ function updateStatsUI() {
   }
 }
 
-function updateMetaInfo() {
-  const updatedEl = document.getElementById("updatedAt");
-  if (updatedEl) {
-    updatedEl.textContent = formatDateForDisplay(state.lastUpdatedAt);
-  }
-}
-
 /**
  * =========================
  * 保存
@@ -645,10 +646,8 @@ async function sendData(options = {}) {
     });
 
     refreshOriginalSnapshotsAfterSave();
-    state.lastUpdatedAt = new Date().toISOString();
 
     updateStatsUI();
-    updateMetaInfo();
 
     if (trigger === "auto") {
       setStatus("自動保存しました");
@@ -697,8 +696,8 @@ function handleCustomItemSubmit(e) {
   const name = document.getElementById("customName")?.value.trim() || "";
   const publisher = document.getElementById("customPublisher")?.value.trim() || "";
   const edition = document.getElementById("customEdition")?.value.trim() || "";
-  const qty = Math.max(0, Number(document.getElementById("customQty")?.value) || 0);
-
+  const qty = Math.max(0, Number(document.getElementById("customQtyValue")?.textContent) || 0);
+  
   if (!name) {
     alert("教材名を入力してください。");
     return;
@@ -730,9 +729,9 @@ function handleCustomItemSubmit(e) {
 
   const form = document.getElementById("customItemForm");
   if (form) form.reset();
-
-  const qtyInput = document.getElementById("customQty");
-  if (qtyInput) qtyInput.value = "1";
+  
+  const qtyDisplay = document.getElementById("customQtyValue");
+  if (qtyDisplay) qtyDisplay.textContent = "1";
 
   closeCustomDialog();
   setStatus("マスタ外教材を追加しました。未保存の状態です。");
@@ -753,7 +752,6 @@ function exportJsonBackup() {
     exportedAt: formatNowJa(),
     roomKey: state.roomKey,
     roomLabel: state.roomLabel,
-    lastUpdatedAt: state.lastUpdatedAt,
     items: state.items.map(item => ({
       id: item.id,
       name: item.name,
@@ -772,38 +770,6 @@ function exportJsonBackup() {
     "application/json"
   );
   setStatus("JSONバックアップを出力しました。");
-}
-
-function exportCsvBackup() {
-  const rows = [
-    ["校舎", "出力日時", "ID", "教材名", "カテゴリ", "教科", "出版社", "版/準拠", "数量", "マスタ外"]
-  ];
-  const exportedAt = formatNowJa();
-
-  for (let i = 0; i < state.items.length; i++) {
-    const item = state.items[i];
-    rows.push([
-      state.roomLabel,
-      exportedAt,
-      item.id,
-      item.name,
-      item.category,
-      item.subject,
-      item.publisher,
-      item.edition,
-      item.qty,
-      item.isCustom ? "1" : "0"
-    ]);
-  }
-
-  const csv = rows.map(row => row.map(csvEscape_).join(",")).join("\r\n");
-
-  downloadTextFile_(
-    `${buildFileBaseName_()}_${formatNowFile_()}.csv`,
-    "\uFEFF" + csv,
-    "text/csv;charset=utf-8"
-  );
-  setStatus("CSVバックアップを出力しました。");
 }
 
 function importJsonBackup(e) {
@@ -832,7 +798,6 @@ function importJsonBackup(e) {
         state.originalSnapshotMap[nextItems[i].id] = "";
       }
 
-      state.lastUpdatedAt = data.lastUpdatedAt || state.lastUpdatedAt;
       state.visibleCount = INITIAL_VISIBLE_COUNT;
 
       recalcAllDirtyFlags();
@@ -840,7 +805,6 @@ function importJsonBackup(e) {
       generateCategoryChips();
       applyFilterAndRender();
       updateStatsUI();
-      updateMetaInfo();
 
       setStatus("JSONバックアップを読み込みました。保存前のため未反映です。");
       alert("JSONを取り込みました。\nこの時点ではまだサーバー保存されていません。");
@@ -907,10 +871,7 @@ function setStatus(msg) {
   const now = new Date().toLocaleTimeString("ja-JP");
   const el = document.getElementById("statusLine");
   if (el) {
-    const total = state.filteredItems.length;
-    const visible = Math.min(state.visibleCount, total);
-    const suffix = total > 0 ? `（${total}件中 ${visible}件表示）` : "";
-    el.textContent = `[${now}] ${msg}${suffix}`;
+    el.textContent = `[${now}] ${msg}`;
   }
 }
 

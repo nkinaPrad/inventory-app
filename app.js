@@ -3,7 +3,6 @@
  * 設定
  * =========================
  */
-const GITHUB_JSON_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/data.json";
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz0HdzSg-7ABwypga37Fb0sn7EYDb0CtJ7o83wXEEHjRAVKspAtqT1FNgHiGq89Sj5DrA/exec";
 
 const ROOM_LABEL_MAP = {
@@ -119,18 +118,12 @@ async function loadAppData() {
   setStatus("データ同期中...");
 
   try {
-    let masterData;
-    let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
-
-    // まずは data.js の MASTER_DATA を優先利用
-    if (Array.isArray(window.MASTER_DATA) && window.MASTER_DATA.length > 0) {
-      masterData = window.MASTER_DATA;
-    } else {
-      // フォールバック: 従来のGitHub JSON取得
-      const masterRes = await fetch(GITHUB_JSON_URL, { cache: "no-store" });
-      if (!masterRes.ok) throw new Error("マスタデータの取得に失敗しました。");
-      masterData = await masterRes.json();
+    if (!Array.isArray(window.MASTER_DATA) || window.MASTER_DATA.length === 0) {
+      throw new Error("data.js の読み込みに失敗しました。");
     }
+
+    const masterData = window.MASTER_DATA;
+    let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
 
     if (state.roomKey) {
       const invRes = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, { cache: "no-store" });
@@ -138,9 +131,6 @@ async function loadAppData() {
       invData = await invRes.json();
     }
 
-    if (!Array.isArray(masterData)) {
-      throw new Error("マスタデータの形式が不正です。");
-    }
     if (!invData.success) {
       throw new Error(invData.message || "在庫データ取得に失敗しました。");
     }

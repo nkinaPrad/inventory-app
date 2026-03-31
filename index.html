@@ -10,9 +10,14 @@
   <header class="top-panel">
     <div class="top-panel-inner">
       <div class="head-main">
-        <h1 class="title">在庫管理</h1>
-        <div id="roomLabel" class="room-badge"></div>
-        <button id="metaToggleBtn" class="btn-subtle" type="button">詳細を表示</button>
+        <div class="title-wrap">
+          <h1 class="title">在庫管理</h1>
+          <div id="roomLabel" class="room-badge"></div>
+        </div>
+      
+        <div class="head-actions">
+          <button id="toolMenuBtn" class="btn-subtle" type="button">ツール</button>
+        </div>
       </div>
 
       <div class="toolbar-card">
@@ -26,8 +31,8 @@
           />
           <div id="filterArea" class="filter-scroll"></div>
         </div>
-
-        <div id="metaPanel" class="meta-panel">
+      
+        <div id="metaPanel" class="meta-panel always-open">
           <div class="meta-row">
             <div class="meta-item">
               <span class="meta-label">取得件数</span>
@@ -38,11 +43,11 @@
               <span id="visibleCount" class="meta-value num">0件</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">最終更新日時</span>
+              <span class="meta-label">最終更新</span>
               <span id="updatedAt" class="meta-value num">-</span>
             </div>
           </div>
-
+      
           <div id="statusLine" class="status-line"></div>
         </div>
       </div>
@@ -56,7 +61,7 @@
   </main>
 
   <div class="bottom-bar">
-    <div class="bottom-inner">
+    <div class="bottom-inner compact">
       <div class="summary-grid">
         <div class="summary-item">
           <span class="summary-label">変更件数</span>
@@ -69,19 +74,23 @@
           <span class="summary-unit">部</span>
         </div>
       </div>
-
-      <div class="btn-row">
-        <button id="addCustomBtn" class="btn-success" type="button">教材追加</button>
-        <button id="exportJsonBtn" class="btn-ghost" type="button">JSON出力</button>
-        <button id="exportCsvBtn" class="btn-ghost" type="button">CSV出力</button>
-        <button id="importJsonBtn" class="btn-ghost" type="button">JSON取込</button>
-        <button id="sendBtn" class="btn-main" disabled type="button">保存する</button>
-      </div>
+  
+      <button id="sendBtn" class="btn-main" disabled type="button">保存する</button>
     </div>
   </div>
 
   <input id="importFileInput" type="file" accept=".json,application/json" hidden />
 
+  <dialog id="toolMenuDialog" class="menu-dialog">
+    <div class="menu-list">
+      <button id="menuAddCustomBtn" class="menu-item" type="button">＋ マスタ外教材を追加</button>
+      <button id="exportJsonBtn" class="menu-item" type="button">JSON出力</button>
+      <button id="exportCsvBtn" class="menu-item" type="button">CSV出力</button>
+      <button id="importJsonBtn" class="menu-item" type="button">JSON取込</button>
+      <button id="closeToolMenuBtn" class="menu-item muted" type="button">閉じる</button>
+    </div>
+  </dialog>
+  
   <dialog id="customItemDialog">
     <div class="modal-head">
       <h2 class="modal-title">マスタ外教材を追加</h2>
@@ -111,8 +120,8 @@
           </div>
 
           <div class="form-row">
-            <label for="customEdition">版・準拠情報</label>
-            <input id="customEdition" class="input" type="text" placeholder="任意" />
+            <label for="customEdition">版・準拠・補足情報</label>
+            <input id="customEdition" class="input" type="text" placeholder="例：改訂版 / 東書 / 20XX年度版 など " />
           </div>
 
           <div class="form-row">

@@ -1,7 +1,7 @@
 /**
  * ====================================================================
  * 教材在庫管理システム - フロントエンド・スクリプト
- * HTML変更版対応 / 初期表示30件 / 詳細コメント版
+ * HTML変更版対応 / 初期表示30件 / 整合版
  * ====================================================================
  */
 
@@ -10,10 +10,8 @@
  * 設定・定数
  * =========================
  */
-// データを保存・取得するGoogle Apps ScriptのURL
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz0HdzSg-7ABwypga37Fb0sn7EYDb0CtJ7o83wXEEHjRAVKspAtqT1FNgHiGq89Sj5DrA/exec";
 
-// URLパラメータ(?room=...)と表示名の対応表
 const ROOM_LABEL_MAP = {
   takadanobaba: "高田馬場",
   sugamo: "巣鴨",
@@ -25,27 +23,27 @@ const ROOM_LABEL_MAP = {
   gakuin: "学院"
 };
 
-const SEARCH_DEBOUNCE_MS = 120; // 検索時の入力待ち時間（負荷軽減）
-const INITIAL_VISIBLE_COUNT = 30; // 最初に見せる件数
-const LOAD_MORE_COUNT = 30;    // 「さらに表示」で増える件数
+const SEARCH_DEBOUNCE_MS = 120;
+const INITIAL_VISIBLE_COUNT = 30;
+const LOAD_MORE_COUNT = 30;
 
 /**
- * アプリケーション状態（メモリ上で保持する最新データ）
+ * アプリケーション状態
  */
 const state = {
-  roomKey: "",            // 校舎キー（例: takadanobaba）
-  roomLabel: "",          // 校舎名（例: 高田馬場）
-  items: [],              // すべての教材データ
-  itemsById: new Map(),   // IDからデータを即座に引くための辞書
-  filteredItems: [],      // 検索やフィルタで絞り込まれた後のリスト
-  activeFilter: "all",    // 現在選択中のカテゴリフィルタ
-  query: "",              // 検索窓の入力文字列
-  isSyncing: false,       // 保存処理中かどうか
-  totalQty: 0,            // 画面上の全教材の合計在庫数
-  dirtyCount: 0,          // 変更があった（保存が必要な）教材の数
-  originalSnapshotMap: Object.create(null), // 変更検知用の「保存直後」の状態記録
-  lastUpdatedAt: "",      // 最終更新日時
-  visibleCount: INITIAL_VISIBLE_COUNT // 現在リストに表示している件数
+  roomKey: "",
+  roomLabel: "",
+  items: [],
+  itemsById: new Map(),
+  filteredItems: [],
+  activeFilter: "all",
+  query: "",
+  isSyncing: false,
+  totalQty: 0,
+  dirtyCount: 0,
+  originalSnapshotMap: Object.create(null),
+  lastUpdatedAt: "",
+  visibleCount: INITIAL_VISIBLE_COUNT
 };
 
 /**
@@ -54,21 +52,17 @@ const state = {
  * =========================
  */
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. URLから校舎情報を取得
   const params = new URLSearchParams(location.search);
   state.roomKey = (params.get("room") || "").trim().toLowerCase();
   state.roomLabel = ROOM_LABEL_MAP[state.roomKey] || "";
 
-  // 2. ボタンや入力フォームのイベント設定
   initUI();
-  
-  // 3. サーバーから最新の在庫データを取得して描画
   await loadAppData();
 });
 
 /**
  * =========================
- * UI初期化（イベントリスナー登録）
+ * UI初期化
  * =========================
  */
 function initUI() {
@@ -78,7 +72,6 @@ function initUI() {
   const filterArea = document.getElementById("filterArea");
   const list = document.getElementById("list");
 
-  // 校舎名の表示（なければ閲覧モード）
   if (roomLabelEl) {
     if (state.roomKey && state.roomLabel) {
       roomLabelEl.textContent = state.roomLabel;
@@ -89,14 +82,12 @@ function initUI() {
     }
   }
 
-  // 検索入力：文字を打つたびにフィルタを実行（デバウンスで実行回数を抑制）
   searchInput?.addEventListener("input", debounce((e) => {
     state.query = String(e.target.value || "").trim().toLowerCase();
-    state.visibleCount = INITIAL_VISIBLE_COUNT; // 検索時は表示件数をリセット
+    state.visibleCount = INITIAL_VISIBLE_COUNT;
     applyFilterAndRender();
   }, SEARCH_DEBOUNCE_MS));
 
-  // カテゴリチップ：クリックしたカテゴリで絞り込み
   filterArea?.addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip");
     if (!chip) return;
@@ -104,7 +95,6 @@ function initUI() {
     const next = chip.dataset.filter;
     if (!next || next === state.activeFilter) return;
 
-    // アクティブな見た目を切り替え
     document.querySelectorAll(".f-chip").forEach(el => el.classList.remove("active"));
     chip.classList.add("active");
 
@@ -113,13 +103,9 @@ function initUI() {
     applyFilterAndRender();
   });
 
-  // リスト全体のクリック：数量ボタン（＋/－）または「さらに表示」ボタンを判別
   list?.addEventListener("click", handleListClick);
-  
-  // 保存ボタン
   sendBtn?.addEventListener("click", sendData);
 
-  // --- ツールメニュー関連 ---
   document.getElementById("toolMenuBtn")?.addEventListener("click", openToolMenu);
   document.getElementById("closeToolMenuBtn")?.addEventListener("click", closeToolMenu);
 
@@ -128,7 +114,6 @@ function initUI() {
     openCustomDialog();
   });
 
-  // --- バックアップ関連 ---
   document.getElementById("exportJsonBtn")?.addEventListener("click", () => {
     closeToolMenu();
     exportJsonBackup();
@@ -146,15 +131,12 @@ function initUI() {
 
   document.getElementById("importFileInput")?.addEventListener("change", importJsonBackup);
 
-  // --- マスタ外追加ダイアログ関連 ---
   document.getElementById("cancelCustomBtn")?.addEventListener("click", closeCustomDialog);
   document.getElementById("customItemForm")?.addEventListener("submit", handleCustomItemSubmit);
 
-  // ダイアログの背景（外側）をクリックしたら閉じる設定
   attachDialogBackdropClose("toolMenuDialog");
   attachDialogBackdropClose("customItemDialog");
 
-  // 初期のUI表示を更新
   updateStatsUI();
   updateMetaInfo();
 }
@@ -176,6 +158,21 @@ function closeToolMenu() {
 
 /**
  * =========================
+ * ダイアログ
+ * =========================
+ */
+function openCustomDialog() {
+  const dialog = document.getElementById("customItemDialog");
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
+function closeCustomDialog() {
+  const dialog = document.getElementById("customItemDialog");
+  if (dialog && dialog.open) dialog.close();
+}
+
+/**
+ * =========================
  * データ取得・同期
  * =========================
  */
@@ -184,17 +181,17 @@ async function loadAppData() {
   setStatus("データ同期中...");
 
   try {
-    // 1. data.jsが正しく読み込まれているかチェック
-    if (typeof MASTER_DATA === 'undefined' || !Array.isArray(MASTER_DATA) || MASTER_DATA.length === 0) {
+    if (typeof MASTER_DATA === "undefined" || !Array.isArray(MASTER_DATA) || MASTER_DATA.length === 0) {
       throw new Error("data.js の読み込みに失敗したか、データが空です。");
     }
 
     const masterData = MASTER_DATA;
     let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
 
-    // 2. 校舎キーがある場合、GASから現在の在庫を取得
     if (state.roomKey) {
-      const invRes = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, { cache: "no-store" });
+      const invRes = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, {
+        cache: "no-store"
+      });
       if (!invRes.ok) throw new Error("在庫データの取得に失敗しました。");
       invData = await invRes.json();
     }
@@ -203,20 +200,18 @@ async function loadAppData() {
       throw new Error(invData.message || "在庫データ取得に失敗しました。");
     }
 
-    // 3. 取得したデータをstateに展開して整理
     buildStateFromServer(masterData, invData);
 
-    // 4. UIの構築
-    generateCategoryChips(); // カテゴリボタン作成
-    updateStatsUI();         // 合計数などの更新
-    applyFilterAndRender();  // リストの描画
+    generateCategoryChips();
+    updateStatsUI();
+    applyFilterAndRender();
 
     const sec = ((performance.now() - started) / 1000).toFixed(2);
     setStatus(`同期完了: ${sec}秒`);
-
   } catch (err) {
-    console.error("Critical Error:", err);
+    console.error(err);
     setStatus(`取得失敗: ${err.message}`);
+
     const listEl = document.getElementById("list");
     if (listEl) {
       listEl.innerHTML = `
@@ -226,13 +221,11 @@ async function loadAppData() {
         </div>
       `;
     }
+
     updateMetaInfo();
   }
 }
 
-/**
- * サーバーデータとマスタデータを合体させてstateを構築する
- */
 function buildStateFromServer(masterData, invData) {
   const inventory = invData.inventory || {};
   const extraItems = Array.isArray(invData.extraItems) ? invData.extraItems : [];
@@ -240,12 +233,12 @@ function buildStateFromServer(masterData, invData) {
   state.lastUpdatedAt = invData.updatedAt || "";
   state.items = [];
   state.itemsById = new Map();
+  state.filteredItems = [];
   state.totalQty = 0;
   state.dirtyCount = 0;
   state.originalSnapshotMap = Object.create(null);
   state.visibleCount = INITIAL_VISIBLE_COUNT;
 
-  // 1. マスタデータ（教科書一覧）を処理
   for (let i = 0; i < masterData.length; i++) {
     const m = masterData[i] || {};
     const id = String(m.id || "").trim();
@@ -258,17 +251,16 @@ function buildStateFromServer(masterData, invData) {
       subject: m.subject || "",
       publisher: m.publisher || "",
       edition: m.edition || "",
-      qty: Number(inventory[id]) || 0, // 在庫データがあれば入れる
+      qty: Number(inventory[id]) || 0,
       isCustom: false
     });
 
     pushItemToState(item);
   }
 
-  // 2. マスタ外教材（以前保存された追加分）を処理
   for (let i = 0; i < extraItems.length; i++) {
     const src = extraItems[i] || {};
-    const ex = normalizeItem({
+    const item = normalizeItem({
       id: exOrDefault(src.id, createCustomId_()),
       name: exOrDefault(src.name, "名称未設定"),
       category: exOrDefault(src.category, "未分類"),
@@ -279,13 +271,24 @@ function buildStateFromServer(masterData, invData) {
       isCustom: true
     });
 
-    pushItemToState(ex);
+    pushItemToState(item);
   }
 }
 
-/**
- * 教材オブジェクトを正規化し、検索用のタグを生成
- */
+function pushItemToState(item) {
+  if (!item || !item.id) return;
+
+  state.items.push(item);
+  state.itemsById.set(item.id, item);
+  state.originalSnapshotMap[item.id] = snapshotKey(item);
+  state.totalQty += item.qty;
+}
+
+function exOrDefault(value, fallback) {
+  const s = String(value == null ? "" : value).trim();
+  return s || fallback;
+}
+
 function normalizeItem(src) {
   const item = {
     id: String(src.id || "").trim(),
@@ -296,31 +299,38 @@ function normalizeItem(src) {
     edition: String(src.edition || "").trim(),
     qty: Math.max(0, Number(src.qty) || 0),
     isCustom: !!src.isCustom,
-    __dirty: false // 変更フラグ
+    __dirty: false
   };
 
-  // 検索用文字列をあらかじめ作っておく
   item.searchTag = [
-    item.id, item.name, item.category, item.subject, item.publisher, item.edition,
+    item.id,
+    item.name,
+    item.category,
+    item.subject,
+    item.publisher,
+    item.edition,
     item.isCustom ? "マスタ外" : ""
   ].join(" ").toLowerCase();
 
   return item;
 }
 
-/**
- * 変更検知用のデータ比較用文字列（JSON）を作成
- */
 function snapshotKey(item) {
   return JSON.stringify({
-    name: item.name, category: item.category, subject: item.subject,
-    publisher: item.publisher, edition: item.edition, qty: item.qty,
+    name: item.name,
+    category: item.category,
+    subject: item.subject,
+    publisher: item.publisher,
+    edition: item.edition,
+    qty: item.qty,
     isCustom: !!item.isCustom
   });
 }
 
 /**
- * 教材カテゴリのボタン（チップ）を自動生成
+ * =========================
+ * フィルタ・描画
+ * =========================
  */
 function generateCategoryChips() {
   const container = document.getElementById("filterArea");
@@ -343,21 +353,14 @@ function generateCategoryChips() {
   container.innerHTML = html;
 }
 
-/**
- * =========================
- * 絞り込み・描画処理
- * =========================
- */
 function applyFilterAndRender() {
   const q = state.query;
   const filter = state.activeFilter;
   const result = [];
 
-  // 条件に合う教材を抽出
   for (let i = 0; i < state.items.length; i++) {
     const item = state.items[i];
 
-    // カテゴリ/種別フィルタ
     if (filter === "input") {
       if (item.qty <= 0) continue;
     } else if (filter === "custom") {
@@ -366,13 +369,10 @@ function applyFilterAndRender() {
       if (item.category !== filter) continue;
     }
 
-    // 検索ワードフィルタ
     if (q && !item.searchTag.includes(q)) continue;
-    
     result.push(item);
   }
 
-  // ソート（マスタ外が上、次にカテゴリ順）
   result.sort(compareItems_);
   state.filteredItems = result;
 
@@ -380,9 +380,12 @@ function applyFilterAndRender() {
   updateMetaInfo();
 }
 
-/**
- * リストをHTMLとして画面に表示（visibleCount分だけ表示）
- */
+function compareItems_(a, b) {
+  if (a.isCustom !== b.isCustom) return a.isCustom ? -1 : 1;
+  if (a.category !== b.category) return a.category.localeCompare(b.category, "ja");
+  return a.name.localeCompare(b.name, "ja");
+}
+
 function renderFilteredItems() {
   const container = document.getElementById("list");
   if (!container) return;
@@ -395,7 +398,6 @@ function renderFilteredItems() {
     return;
   }
 
-  // 表示件数分だけ切り出す
   const visibleItems = state.filteredItems.slice(0, state.visibleCount);
   let html = "";
 
@@ -403,7 +405,6 @@ function renderFilteredItems() {
     html += renderItemHTML(visibleItems[i]);
   }
 
-  // 全件数より表示数が少なければ「さらに表示」ボタンを追加
   if (state.filteredItems.length > state.visibleCount) {
     html += renderLoadMoreHTML();
   }
@@ -412,9 +413,6 @@ function renderFilteredItems() {
   updateMetaInfo();
 }
 
-/**
- * 教材カード1枚分のHTML
- */
 function renderItemHTML(item) {
   const metaTexts = [];
   if (item.publisher) metaTexts.push(`出版社: ${item.publisher}`);
@@ -429,12 +427,15 @@ function renderItemHTML(item) {
           ${item.publisher ? `<span class="badge badge-pub">${escapeHtml(item.publisher)}</span>` : ""}
           ${item.isCustom ? `<span class="badge badge-custom">マスタ外</span>` : ""}
         </div>
+
         <div class="item-name">${escapeHtml(item.name)}</div>
+
         <div class="item-meta-text">
           ${escapeHtml(item.id)}
           ${metaTexts.length ? ` / ${escapeHtml(metaTexts.join(" / "))}` : ""}
         </div>
       </div>
+
       <div class="qty-box">
         <button type="button" class="qty-btn minus" aria-label="減らす">−</button>
         <div class="qty-num num">${item.qty}</div>
@@ -444,20 +445,32 @@ function renderItemHTML(item) {
   `;
 }
 
+function renderLoadMoreHTML() {
+  const remain = Math.max(0, state.filteredItems.length - state.visibleCount);
+  const next = Math.min(LOAD_MORE_COUNT, remain);
+
+  return `
+    <div class="empty" style="padding:24px 16px;">
+      <button id="loadMoreBtn" type="button" class="btn-subtle">
+        さらに表示（あと${remain}件 / 次に${next}件）
+      </button>
+    </div>
+  `;
+}
+
 /**
  * =========================
- * 在庫数の変更操作
+ * 数量操作
  * =========================
  */
 function handleListClick(e) {
-  // 「さらに表示」ボタンクリック時
   const loadMoreBtn = e.target.closest("#loadMoreBtn");
   if (loadMoreBtn) {
     state.visibleCount += LOAD_MORE_COUNT;
     renderFilteredItems();
     return;
   }
-  // ＋・－ボタンクリック時
+
   handleCounterClick(e);
 }
 
@@ -467,7 +480,9 @@ function handleCounterClick(e) {
   if (!btn.classList.contains("plus") && !btn.classList.contains("minus")) return;
 
   const card = e.target.closest(".item");
-  const id = card?.dataset.id;
+  if (!card) return;
+
+  const id = card.dataset.id;
   const item = state.itemsById.get(id);
   if (!item) return;
 
@@ -482,27 +497,24 @@ function handleCounterClick(e) {
 
   if (newQty === oldQty) return;
 
-  // 数値を更新
   item.qty = newQty;
+
   const qtyEl = card.querySelector(".qty-num");
   if (qtyEl) qtyEl.textContent = String(newQty);
+
   card.classList.toggle("has-qty", newQty > 0);
 
-  // 変更検知と合計値の再計算
   applyDirtyRecalcForItem(item);
   updateStatsUI();
 
-  // 「入力済み」フィルタ中に0にした場合はリストから消す
   if (state.activeFilter === "input" && newQty === 0) {
     applyFilterAndRender();
     return;
   }
+
   updateMetaInfo();
 }
 
-/**
- * 教材が「保存後の状態から変更されたか」をチェックしてdirtyCountを増減させる
- */
 function applyDirtyRecalcForItem(item) {
   const original = state.originalSnapshotMap[item.id] || "";
   const current = snapshotKey(item);
@@ -514,25 +526,35 @@ function applyDirtyRecalcForItem(item) {
 
   if (!wasDirty && isDirty) state.dirtyCount++;
   if (wasDirty && !isDirty) state.dirtyCount--;
+
   if (state.dirtyCount < 0) state.dirtyCount = 0;
 
   recalcTotalQty();
 }
 
-/**
- * 全教材の在庫数を合計する
- */
+function recalcAllDirtyFlags() {
+  let dirtyCount = 0;
+
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    const isDirty = snapshotKey(item) !== (state.originalSnapshotMap[item.id] || "");
+    item.__dirty = isDirty;
+    if (isDirty) dirtyCount++;
+  }
+
+  state.dirtyCount = dirtyCount;
+}
+
 function recalcTotalQty() {
   let total = 0;
+
   for (let i = 0; i < state.items.length; i++) {
     total += Number(state.items[i].qty) || 0;
   }
+
   state.totalQty = total;
 }
 
-/**
- * 下部バー（合計部数・保存ボタンの状態）を更新
- */
 function updateStatsUI() {
   const totalQtyEl = document.getElementById("totalQty");
   if (totalQtyEl) {
@@ -546,9 +568,6 @@ function updateStatsUI() {
   }
 }
 
-/**
- * メタ情報（最終更新日時など）を表示
- */
 function updateMetaInfo() {
   const updatedEl = document.getElementById("updatedAt");
   if (updatedEl) {
@@ -558,7 +577,7 @@ function updateMetaInfo() {
 
 /**
  * =========================
- * サーバー保存処理
+ * 保存
  * =========================
  */
 async function sendData() {
@@ -576,7 +595,6 @@ async function sendData() {
     if (btn) btn.textContent = "保存中...";
     setStatus("保存中...");
 
-    // 全アイテムを送信（マスタ外も含む）
     const payload = state.items.map(item => ({
       id: item.id,
       name: item.name,
@@ -592,15 +610,13 @@ async function sendData() {
     params.append("room", state.roomKey);
     params.append("payload", JSON.stringify(payload));
 
-    // GASへPOST送信
     await fetch(GAS_URL, {
       method: "POST",
-      mode: "no-cors", // GASの仕様上、レスポンスは見られないが送信は可能
+      mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString()
     });
 
-    // 保存が成功したとみなして、今の状態を「オリジナル」として記録
     refreshOriginalSnapshotsAfterSave();
     state.lastUpdatedAt = new Date().toISOString();
 
@@ -608,7 +624,6 @@ async function sendData() {
     updateMetaInfo();
     setStatus("保存リクエスト送信完了");
     alert("保存リクエストを送信しました。\n（反映には数秒かかる場合があります）");
-
   } catch (err) {
     console.error(err);
     setStatus(`保存失敗: ${err.message}`);
@@ -620,28 +635,26 @@ async function sendData() {
   }
 }
 
-/**
- * 保存後、現在の状態を比較用スナップショットとして上書きする
- */
 function refreshOriginalSnapshotsAfterSave() {
   state.originalSnapshotMap = Object.create(null);
+
   for (let i = 0; i < state.items.length; i++) {
     const item = state.items[i];
     state.originalSnapshotMap[item.id] = snapshotKey(item);
     item.__dirty = false;
   }
+
   state.dirtyCount = 0;
 }
 
 /**
  * =========================
- * マスタ外教材の追加ダイアログ
+ * マスタ外教材
  * =========================
  */
 function handleCustomItemSubmit(e) {
   e.preventDefault();
 
-  // フォームから値を取得
   const name = document.getElementById("customName")?.value.trim() || "";
   const category = document.getElementById("customCategory")?.value.trim() || "未分類";
   const subject = document.getElementById("customSubject")?.value.trim() || "";
@@ -654,31 +667,33 @@ function handleCustomItemSubmit(e) {
     return;
   }
 
-  // 新しい教材オブジェクトを作成
   const item = normalizeItem({
     id: createCustomId_(),
-    name, category, subject, publisher, edition, qty,
+    name,
+    category,
+    subject,
+    publisher,
+    edition,
+    qty,
     isCustom: true
   });
 
-  // リストの先頭に追加
   state.items.unshift(item);
   state.itemsById.set(item.id, item);
-  state.originalSnapshotMap[item.id] = ""; // 初期状態は空＝変更ありとみなす
+  state.originalSnapshotMap[item.id] = "";
   item.__dirty = true;
   state.dirtyCount++;
 
   recalcTotalQty();
-  generateCategoryChips(); // 新しいカテゴリが増えた可能性があるので更新
+  generateCategoryChips();
   updateStatsUI();
 
-  // 表示を更新
   state.visibleCount = INITIAL_VISIBLE_COUNT;
   applyFilterAndRender();
 
-  // フォームリセット
   const form = document.getElementById("customItemForm");
   if (form) form.reset();
+
   const qtyInput = document.getElementById("customQty");
   if (qtyInput) qtyInput.value = "1";
 
@@ -686,12 +701,169 @@ function handleCustomItemSubmit(e) {
   setStatus("マスタ外教材を追加しました。未保存の状態です。");
 }
 
+function createCustomId_() {
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `CUSTOM-${Date.now()}-${rand}`;
+}
+
 /**
  * =========================
- * ユーティリティ・小関数
+ * バックアップ
  * =========================
  */
-// ステータスバーのメッセージを更新（現在時刻付き）
+function exportJsonBackup() {
+  const data = {
+    exportedAt: formatNowJa(),
+    roomKey: state.roomKey,
+    roomLabel: state.roomLabel,
+    lastUpdatedAt: state.lastUpdatedAt,
+    items: state.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      subject: item.subject,
+      publisher: item.publisher,
+      edition: item.edition,
+      qty: item.qty,
+      isCustom: !!item.isCustom
+    }))
+  };
+
+  downloadTextFile_(
+    `${buildFileBaseName_()}_${formatNowFile_()}.json`,
+    JSON.stringify(data, null, 2),
+    "application/json"
+  );
+  setStatus("JSONバックアップを出力しました。");
+}
+
+function exportCsvBackup() {
+  const rows = [
+    ["校舎", "出力日時", "ID", "教材名", "カテゴリ", "教科", "出版社", "版/準拠", "数量", "マスタ外"]
+  ];
+  const exportedAt = formatNowJa();
+
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    rows.push([
+      state.roomLabel,
+      exportedAt,
+      item.id,
+      item.name,
+      item.category,
+      item.subject,
+      item.publisher,
+      item.edition,
+      item.qty,
+      item.isCustom ? "1" : "0"
+    ]);
+  }
+
+  const csv = rows.map(row => row.map(csvEscape_).join(",")).join("\r\n");
+
+  downloadTextFile_(
+    `${buildFileBaseName_()}_${formatNowFile_()}.csv`,
+    "\uFEFF" + csv,
+    "text/csv;charset=utf-8"
+  );
+  setStatus("CSVバックアップを出力しました。");
+}
+
+function importJsonBackup(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || "{}"));
+      if (!Array.isArray(data.items)) {
+        throw new Error("items 配列が見つかりません。");
+      }
+
+      const nextItems = data.items.map(item => normalizeItem(item));
+      state.items = nextItems;
+      state.itemsById = new Map();
+
+      for (let i = 0; i < nextItems.length; i++) {
+        state.itemsById.set(nextItems[i].id, nextItems[i]);
+      }
+
+      state.originalSnapshotMap = Object.create(null);
+      for (let i = 0; i < nextItems.length; i++) {
+        state.originalSnapshotMap[nextItems[i].id] = "";
+      }
+
+      state.lastUpdatedAt = data.lastUpdatedAt || state.lastUpdatedAt;
+      state.visibleCount = INITIAL_VISIBLE_COUNT;
+
+      recalcAllDirtyFlags();
+      recalcTotalQty();
+      generateCategoryChips();
+      applyFilterAndRender();
+      updateStatsUI();
+      updateMetaInfo();
+
+      setStatus("JSONバックアップを読み込みました。保存前のため未反映です。");
+      alert("JSONを取り込みました。\nこの時点ではまだサーバー保存されていません。");
+    } catch (err) {
+      console.error(err);
+      alert(`JSON取込に失敗しました: ${err.message}`);
+      setStatus(`JSON取込失敗: ${err.message}`);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  reader.onerror = () => {
+    alert("ファイルの読み込みに失敗しました。");
+    e.target.value = "";
+  };
+
+  reader.readAsText(file, "utf-8");
+}
+
+function downloadTextFile_(filename, text, mimeType) {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildFileBaseName_() {
+  return `inventory_${state.roomKey || "viewer"}`;
+}
+
+function formatNowFile_() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+}
+
+function csvEscape_(value) {
+  const s = String(value == null ? "" : value);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+/**
+ * =========================
+ * ユーティリティ
+ * =========================
+ */
 function setStatus(msg) {
   const now = new Date().toLocaleTimeString("ja-JP");
   const el = document.getElementById("statusLine");
@@ -703,7 +875,6 @@ function setStatus(msg) {
   }
 }
 
-// 入力イベントの頻度を抑えるためのデバウンス関数
 function debounce(fn, wait) {
   let timer = null;
   return function (...args) {
@@ -712,30 +883,51 @@ function debounce(fn, wait) {
   };
 }
 
-// 画面表示用の日付整形
+function formatNowJa() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+}
+
 function formatDateForDisplay(value) {
   if (!value) return "-";
+
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
 
   return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit"
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
   }).format(d);
 }
 
-// HTMLエスケープ（セキュリティ対策：タグなどを無効化）
 function escapeHtml(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[ch];
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#039;"
+    }[ch];
   });
 }
 
-// ダイアログの「外側」をクリックした時に閉じるための処理
 function attachDialogBackdropClose(dialogId) {
   const dialog = document.getElementById(dialogId);
   if (!dialog) return;
+
   dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
+    if (e.target === dialog) {
+      dialog.close();
+    }
   });
 }

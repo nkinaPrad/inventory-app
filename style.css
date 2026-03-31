@@ -22,9 +22,16 @@
 
 * { box-sizing: border-box; }
 
+input, textarea, select {
+  font-size: 16px; /* 16px以上にするとiOSでズームしなくなります */
+}
+
 html, body {
   margin: 0;
   padding: 0;
+  
+  /* スクロールは許可し、ダブルタップズーム（操作）を無効にする */
+  touch-action: manipulation;
 }
 
 html { -webkit-text-size-adjust: 100%; }

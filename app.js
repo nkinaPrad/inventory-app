@@ -161,6 +161,21 @@ function initUI() {
 
 /**
  * =========================
+ * ツールメニュー
+ * =========================
+ */
+function openToolMenu() {
+  const dialog = document.getElementById("toolMenuDialog");
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
+function closeToolMenu() {
+  const dialog = document.getElementById("toolMenuDialog");
+  if (dialog && dialog.open) dialog.close();
+}
+
+/**
+ * =========================
  * データ取得・同期
  * =========================
  */

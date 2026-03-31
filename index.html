@@ -14,7 +14,7 @@
           <h1 class="title">在庫管理</h1>
           <div id="roomLabel" class="room-badge"></div>
         </div>
-      
+
         <div class="head-actions">
           <button id="toolMenuBtn" class="btn-subtle" type="button">ツール</button>
         </div>
@@ -26,20 +26,13 @@
             id="searchInput"
             class="search-input"
             type="search"
-            placeholder="教材名・出版社・コードで検索..."
+            placeholder="教材名・出版社で検索..."
             autocomplete="off"
           />
           <div id="filterArea" class="filter-scroll"></div>
         </div>
-      
+
         <div id="metaPanel" class="meta-panel always-open">
-          <div class="meta-row">
-            <div class="meta-item">
-              <span class="meta-label">最終更新</span>
-              <span id="updatedAt" class="meta-value num">-</span>
-            </div>
-          </div>
-      
           <div id="statusLine" class="status-line"></div>
         </div>
       </div>
@@ -61,8 +54,15 @@
           <span class="summary-unit">部</span>
         </div>
       </div>
-  
-      <button id="sendBtn" class="btn-main" disabled type="button">保存する</button>
+
+      <div class="bottom-actions">
+        <div class="save-meta">
+          <span class="save-meta-label">最終更新</span>
+          <span id="updatedAt" class="save-meta-value num">-</span>
+        </div>
+
+        <button id="sendBtn" class="btn-main" disabled type="button">保存する</button>
+      </div>
     </div>
   </div>
 
@@ -77,7 +77,7 @@
       <button id="closeToolMenuBtn" class="menu-item muted" type="button">閉じる</button>
     </div>
   </dialog>
-  
+
   <dialog id="customItemDialog">
     <div class="modal-head">
       <h2 class="modal-title">マスタ外教材を追加</h2>
@@ -88,7 +88,7 @@
         <div class="form-grid">
           <div class="form-row">
             <label for="customName">教材名 <span style="color:#dc2626;">※必須</span></label>
-            <input id="customName" class="input" type="text" placeholder="例：サンプル問題集 社会 中3 / よくわかる高校数学"  required />
+            <input id="customName" class="input" type="text" placeholder="例：サンプル問題集 社会 中3 / よくわかる高校数学" required />
           </div>
 
           <div class="form-row">

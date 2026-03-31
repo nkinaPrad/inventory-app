@@ -491,9 +491,26 @@ function updateMetaInfo() {
   const visibleCountEl = document.getElementById("visibleCount");
   const updatedEl = document.getElementById("updatedAt");
 
+  // 日付のフォーマット設定
+  const formatDate = (date) => {
+    if (!date) return "-";
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "-"; // 無効な日付の場合はハイフンを返す
+
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  };
+
   if (totalCountEl) totalCountEl.textContent = `${state.items.length.toLocaleString()}件`;
   if (visibleCountEl) visibleCountEl.textContent = `${state.filteredItems.length.toLocaleString()}件`;
-  if (updatedEl) updatedEl.textContent = state.lastUpdatedAt || "-";
+  
+  // 整形した日付を代入
+  if (updatedEl) updatedEl.textContent = formatDate(state.lastUpdatedAt);
 }
 
 /**

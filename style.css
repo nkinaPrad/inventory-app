@@ -515,6 +515,34 @@ dialog::backdrop {
   color: var(--sub);
 }
 
+/* メニュー内での強調アクション用クラス */
+.menu-item.menu-item-primary {
+  background: var(--success-soft); /* 薄い緑背景 */
+  border: 1px solid var(--success); /* 緑の枠線 */
+  color: var(--success);           /* 緑の文字色 */
+  margin-bottom: 8px;              /* リスト内で少し浮かせる */
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.08);
+  transition: all 0.2s ease;
+}
+
+/* タップ・クリック時のフィードバック */
+.menu-item.menu-item-primary:active {
+  transform: scale(0.98);
+  background: var(--success);
+  color: #fff;
+}
+
+/* ＋マークなどの記号を少し太く */
+.menu-item.menu-item-primary::before {
+  font-weight: 800;
+}
+
 .modal-head,
 .modal-body,
 .modal-foot {

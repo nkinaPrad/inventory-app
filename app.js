@@ -116,7 +116,13 @@ function initUI() {
   sendBtn.addEventListener("click", sendData);
 
   // メタ情報・エクスポート関連のイベント
-  document.getElementById("metaToggleBtn").addEventListener("click", toggleMetaPanel);
+  document.getElementById("toolMenuBtn").addEventListener("click", openToolMenu);
+  document.getElementById("closeToolMenuBtn").addEventListener("click", closeToolMenu);
+  document.getElementById("menuAddCustomBtn").addEventListener("click", () => {
+    closeToolMenu();
+    openCustomDialog();
+  });
+  
   document.getElementById("exportJsonBtn").addEventListener("click", exportJsonBackup);
   document.getElementById("exportCsvBtn").addEventListener("click", exportCsvBackup);
   document.getElementById("importJsonBtn").addEventListener("click", () => {
@@ -125,7 +131,6 @@ function initUI() {
   document.getElementById("importFileInput").addEventListener("change", importJsonBackup);
 
   // マスタ外アイテム追加ダイアログ
-  document.getElementById("addCustomBtn").addEventListener("click", openCustomDialog);
   document.getElementById("cancelCustomBtn").addEventListener("click", closeCustomDialog);
   document.getElementById("customItemForm").addEventListener("submit", handleCustomItemSubmit);
 

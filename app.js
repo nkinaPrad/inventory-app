@@ -1,7 +1,7 @@
 /**
  * ====================================================================
  * 教材在庫管理システム - フロントエンド・スクリプト
- * HTML変更版対応 / 初期表示30件 / 整合版
+ * HTML変更版対応 / 初期表示30件 / 自動保存対応版
  * ====================================================================
  */
 
@@ -27,6 +27,9 @@ const SEARCH_DEBOUNCE_MS = 120;
 const INITIAL_VISIBLE_COUNT = 30;
 const LOAD_MORE_COUNT = 30;
 
+/* 自動保存間隔（ミリ秒） */
+const AUTO_SAVE_INTERVAL_MS = 30000;
+
 /**
  * アプリケーション状態
  */
@@ -43,7 +46,9 @@ const state = {
   dirtyCount: 0,
   originalSnapshotMap: Object.create(null),
   lastUpdatedAt: "",
-  visibleCount: INITIAL_VISIBLE_COUNT
+  visibleCount: INITIAL_VISIBLE_COUNT,
+  autoSaveTimerId: null,
+  lastStatusMessage: ""
 };
 
 /**
@@ -58,6 +63,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initUI();
   await loadAppData();
+  startAutoSave();
 });
 
 /**
@@ -104,7 +110,7 @@ function initUI() {
   });
 
   list?.addEventListener("click", handleListClick);
-  sendBtn?.addEventListener("click", sendData);
+  sendBtn?.addEventListener("click", () => sendData({ silent: false, trigger: "manual" }));
 
   document.getElementById("toolMenuBtn")?.addEventListener("click", openToolMenu);
   document.getElementById("closeToolMenuBtn")?.addEventListener("click", closeToolMenu);
@@ -139,6 +145,28 @@ function initUI() {
 
   updateStatsUI();
   updateMetaInfo();
+}
+
+/**
+ * =========================
+ * 自動保存
+ * =========================
+ */
+function startAutoSave() {
+  stopAutoSave();
+
+  if (!state.roomKey) return;
+
+  state.autoSaveTimerId = window.setInterval(() => {
+    sendData({ silent: true, trigger: "auto" });
+  }, AUTO_SAVE_INTERVAL_MS);
+}
+
+function stopAutoSave() {
+  if (state.autoSaveTimerId) {
+    clearInterval(state.autoSaveTimerId);
+    state.autoSaveTimerId = null;
+  }
 }
 
 /**
@@ -303,7 +331,6 @@ function normalizeItem(src) {
   };
 
   item.searchTag = [
-    item.id,
     item.name,
     item.category,
     item.subject,
@@ -415,7 +442,6 @@ function renderFilteredItems() {
 
 function renderItemHTML(item) {
   const metaTexts = [];
-  if (item.publisher) metaTexts.push(`出版社: ${item.publisher}`);
   if (item.edition) metaTexts.push(`版/準拠: ${item.edition}`);
 
   return `
@@ -424,15 +450,15 @@ function renderItemHTML(item) {
         <div class="item-badges">
           <span class="badge badge-cat">${escapeHtml(item.category || "未分類")}</span>
           ${item.subject ? `<span class="badge badge-sub">${escapeHtml(item.subject)}</span>` : ""}
-          ${item.publisher ? `<span class="badge badge-pub">${escapeHtml(item.publisher)}</span>` : ""}
           ${item.isCustom ? `<span class="badge badge-custom">マスタ外</span>` : ""}
         </div>
+
+        ${item.publisher ? `<div class="item-publisher-top">${escapeHtml(item.publisher)}</div>` : ""}
 
         <div class="item-name">${escapeHtml(item.name)}</div>
 
         <div class="item-meta-text">
-          ${escapeHtml(item.id)}
-          ${metaTexts.length ? ` / ${escapeHtml(metaTexts.join(" / "))}` : ""}
+          ${metaTexts.length ? escapeHtml(metaTexts.join(" / ")) : " "}
         </div>
       </div>
 
@@ -513,6 +539,7 @@ function handleCounterClick(e) {
   }
 
   updateMetaInfo();
+  setStatus("未保存の変更があります");
 }
 
 function applyDirtyRecalcForItem(item) {
@@ -580,20 +607,20 @@ function updateMetaInfo() {
  * 保存
  * =========================
  */
-async function sendData() {
-  if (!state.roomKey || state.isSyncing) return;
-  if (state.dirtyCount === 0) return;
+async function sendData(options = {}) {
+  const { silent = false, trigger = "manual" } = options;
 
-  const ok = confirm(`${state.dirtyCount}件の変更を保存しますか？`);
-  if (!ok) return;
+  if (!state.roomKey || state.isSyncing) return false;
+  if (state.dirtyCount === 0) return false;
 
   const btn = document.getElementById("sendBtn");
 
   try {
     state.isSyncing = true;
     updateStatsUI();
-    if (btn) btn.textContent = "保存中...";
-    setStatus("保存中...");
+
+    if (btn && !silent) btn.textContent = "保存中...";
+    setStatus(trigger === "auto" ? "自動保存中..." : "保存中...");
 
     const payload = state.items.map(item => ({
       id: item.id,
@@ -622,12 +649,24 @@ async function sendData() {
 
     updateStatsUI();
     updateMetaInfo();
-    setStatus("保存リクエスト送信完了");
-    alert("保存リクエストを送信しました。\n（反映には数秒かかる場合があります）");
+
+    if (trigger === "auto") {
+      setStatus("自動保存しました");
+    } else {
+      setStatus("保存しました");
+      alert("保存リクエストを送信しました。\n（反映には数秒かかる場合があります）");
+    }
+
+    return true;
   } catch (err) {
     console.error(err);
     setStatus(`保存失敗: ${err.message}`);
-    alert(`保存失敗: ${err.message}`);
+
+    if (!silent) {
+      alert(`保存失敗: ${err.message}`);
+    }
+
+    return false;
   } finally {
     state.isSyncing = false;
     if (btn) btn.textContent = "保存する";
@@ -656,8 +695,6 @@ function handleCustomItemSubmit(e) {
   e.preventDefault();
 
   const name = document.getElementById("customName")?.value.trim() || "";
-  const category = document.getElementById("customCategory")?.value.trim() || "未分類";
-  const subject = document.getElementById("customSubject")?.value.trim() || "";
   const publisher = document.getElementById("customPublisher")?.value.trim() || "";
   const edition = document.getElementById("customEdition")?.value.trim() || "";
   const qty = Math.max(0, Number(document.getElementById("customQty")?.value) || 0);
@@ -670,8 +707,8 @@ function handleCustomItemSubmit(e) {
   const item = normalizeItem({
     id: createCustomId_(),
     name,
-    category,
-    subject,
+    category: "未分類",
+    subject: "",
     publisher,
     edition,
     qty,
@@ -865,6 +902,8 @@ function csvEscape_(value) {
  * =========================
  */
 function setStatus(msg) {
+  state.lastStatusMessage = msg;
+
   const now = new Date().toLocaleTimeString("ja-JP");
   const el = document.getElementById("statusLine");
   if (el) {

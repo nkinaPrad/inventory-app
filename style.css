@@ -22,8 +22,16 @@
 
 * { box-sizing: border-box; }
 
-input, textarea, select {
-  font-size: 16px; /* 16px以上にするとiOSでズームしなくなります */
+/* クラス指定よりも優先されるように調整 */
+.input, .select, .search-input {
+  font-size: 16px !important;
+}
+
+.qty-btn, .btn-subtle, .f-chip, .btn-main {
+  touch-action: manipulation;
+  /* iPhoneでの長押し選択（テキスト選択）も防ぐとよりアプリらしくなります */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 html, body {

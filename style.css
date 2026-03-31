@@ -4,6 +4,7 @@
   --surface-2: #f8fafc;
   --text: #1f2937;
   --sub: #667085;
+  --sub-soft: #98a2b3;
   --line: #e5e7eb;
   --line-2: #d0d5dd;
   --primary: #2563eb;
@@ -207,11 +208,11 @@ body {
 }
 
 .meta-panel {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.82);
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   display: block;
 }
 
@@ -245,10 +246,11 @@ body {
 }
 
 .status-line {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
-  color: var(--sub);
+  color: var(--sub-soft);
   min-height: 14px;
+  line-height: 1.4;
 }
 
 .list-wrap {
@@ -292,7 +294,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .badge {
@@ -309,8 +311,16 @@ body {
 
 .badge-cat { background: #e0ecff; color: #1d4ed8; }
 .badge-sub { background: #e8f7ec; color: #137333; }
-.badge-pub { background: #fff4db; color: #b45309; }
 .badge-custom { background: #dcfce7; color: #166534; }
+
+.item-publisher-top {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--sub-soft);
+  line-height: 1.4;
+  font-weight: 500;
+  word-break: break-word;
+}
 
 .item-name {
   font-size: 16px;
@@ -432,6 +442,32 @@ body {
   font-weight: 600;
 }
 
+.bottom-actions {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.save-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+  color: var(--sub-soft);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.save-meta-label {
+  color: var(--sub-soft);
+  font-weight: 500;
+}
+
+.save-meta-value {
+  color: #667085;
+  font-weight: 600;
+}
+
 .btn-main,
 .btn-ghost,
 .btn-success {
@@ -515,13 +551,11 @@ dialog::backdrop {
   color: var(--sub);
 }
 
-/* メニュー内での強調アクション用クラス */
 .menu-item.menu-item-primary {
-  background: var(--success-soft); /* 薄い緑背景 */
-  border: 1px solid var(--success); /* 緑の枠線 */
-  color: var(--success);           /* 緑の文字色 */
-  margin-bottom: 8px;              /* リスト内で少し浮かせる */
-  
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  color: var(--success);
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -531,14 +565,12 @@ dialog::backdrop {
   transition: all 0.2s ease;
 }
 
-/* タップ・クリック時のフィードバック */
 .menu-item.menu-item-primary:active {
   transform: scale(0.98);
   background: var(--success);
   color: #fff;
 }
 
-/* ＋マークなどの記号を少し太く */
 .menu-item.menu-item-primary::before {
   font-weight: 800;
 }
@@ -622,11 +654,6 @@ dialog::backdrop {
     font-size: 11px;
   }
 
-  .meta-row {
-    gap: 4px 12px;
-    font-size: 10px;
-  }
-
   .status-line {
     font-size: 10px;
   }
@@ -651,6 +678,14 @@ dialog::backdrop {
   .bottom-inner,
   .bottom-inner.compact {
     grid-template-columns: 1fr;
+  }
+
+  .bottom-actions {
+    justify-items: stretch;
+  }
+
+  .save-meta {
+    justify-content: flex-end;
   }
 
   .btn-main,
@@ -691,5 +726,13 @@ dialog::backdrop {
 
   .summary-value {
     font-size: 20px;
+  }
+
+  .item-publisher-top {
+    font-size: 10px;
+  }
+
+  .save-meta {
+    font-size: 10px;
   }
 }

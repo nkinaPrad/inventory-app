@@ -47,7 +47,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
-  padding-bottom: 170px;
+  padding-bottom: 110px;
 }
 
 .num {
@@ -73,15 +73,23 @@ body {
 .top-panel-inner {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 10px 18px 10px;
+  padding: 10px 18px;
 }
 
 .head-main {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+.title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .title {
@@ -89,24 +97,36 @@ body {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  white-space: nowrap;
+  line-height: 1.3;
 }
 
 .room-badge {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary);
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sub);
   font-size: 12px;
-  font-weight: 700;
-  border: 1px solid #bfdbfe;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
+.room-badge::before {
+  content: "教室：";
+  color: #98a2b3;
+  font-weight: 500;
+}
+
 .room-badge.muted {
-  background: #f3f4f6;
-  color: #6b7280;
-  border-color: #e5e7eb;
+  color: #98a2b3;
+}
+
+.head-actions {
+  flex: 0 0 auto;
 }
 
 .btn-subtle {
@@ -160,7 +180,9 @@ body {
   scrollbar-width: none;
 }
 
-.filter-scroll::-webkit-scrollbar { display: none; }
+.filter-scroll::-webkit-scrollbar {
+  display: none;
+}
 
 .f-chip {
   flex: 0 0 auto;
@@ -184,27 +206,19 @@ body {
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.24);
 }
 
-.meta-toggle-area {
-  margin-top: 8px;
-}
-
 .meta-panel {
   margin-top: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(255,255,255,0.8);
-  display: none;
-}
-
-.meta-panel.open {
+  background: rgba(255, 255, 255, 0.82);
   display: block;
 }
 
 .meta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: 6px 16px;
   align-items: center;
   font-size: 11px;
   color: var(--sub);
@@ -231,7 +245,7 @@ body {
 }
 
 .status-line {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 11px;
   color: var(--sub);
   min-height: 14px;
@@ -270,7 +284,9 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f3fff6 100%);
 }
 
-.item-main { min-width: 0; }
+.item-main {
+  min-width: 0;
+}
 
 .item-badges {
   display: flex;
@@ -360,7 +376,7 @@ body {
   right: 0;
   bottom: 0;
   z-index: 60;
-  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
   background: rgba(247, 249, 252, 0.92);
   backdrop-filter: blur(12px);
   border-top: 1px solid rgba(208, 213, 221, 0.7);
@@ -373,17 +389,21 @@ body {
   border: 1px solid rgba(229, 231, 235, 0.95);
   border-radius: 18px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-  padding: 12px;
+  padding: 10px 12px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
   align-items: center;
 }
 
+.bottom-inner.compact {
+  grid-template-columns: 1fr auto;
+}
+
 .summary-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 18px;
+  gap: 10px 18px;
   align-items: center;
 }
 
@@ -410,13 +430,6 @@ body {
   font-size: 12px;
   color: var(--sub);
   font-weight: 600;
-}
-
-.btn-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
 }
 
 .btn-main,
@@ -471,6 +484,35 @@ dialog {
 
 dialog::backdrop {
   background: rgba(15, 23, 42, 0.34);
+}
+
+.menu-dialog {
+  width: min(320px, calc(100vw - 24px));
+  border-radius: 16px;
+  padding: 8px;
+}
+
+.menu-list {
+  display: grid;
+  gap: 6px;
+}
+
+.menu-item {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #344054;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item.muted {
+  color: var(--sub);
 }
 
 .modal-head,
@@ -530,7 +572,7 @@ dialog::backdrop {
 
 @media (max-width: 700px) {
   body {
-    padding-bottom: 220px;
+    padding-bottom: 132px;
   }
 
   .shell,
@@ -541,15 +583,24 @@ dialog::backdrop {
   }
 
   .head-main {
-    grid-template-columns: 1fr auto;
+    align-items: center;
   }
 
   .title {
     font-size: 16px;
   }
 
-  #metaToggleBtn {
-    grid-column: 1 / -1;
+  .room-badge {
+    font-size: 11px;
+  }
+
+  .meta-row {
+    gap: 4px 12px;
+    font-size: 10px;
+  }
+
+  .status-line {
+    font-size: 10px;
   }
 
   .item {
@@ -569,17 +620,48 @@ dialog::backdrop {
     width: 100%;
   }
 
-  .bottom-inner {
+  .bottom-inner,
+  .bottom-inner.compact {
     grid-template-columns: 1fr;
-  }
-
-  .btn-row {
-    justify-content: stretch;
   }
 
   .btn-main,
   .btn-ghost,
   .btn-success {
     width: 100%;
+  }
+
+  .modal-foot {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .head-main {
+    align-items: flex-start;
+  }
+
+  .title-wrap {
+    gap: 1px;
+  }
+
+  .title {
+    font-size: 15px;
+  }
+
+  .btn-subtle {
+    height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .toolbar-card,
+  .item,
+  .bottom-inner {
+    border-radius: 14px;
+  }
+
+  .summary-value {
+    font-size: 20px;
   }
 }

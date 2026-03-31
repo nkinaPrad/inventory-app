@@ -520,13 +520,13 @@ function recalcTotalQty() {
  */
 function updateStatsUI() {
   const totalQtyEl = document.getElementById("totalQty");
-  if (totalQtyEl) totalQtyEl.textContent = String(state.totalQty);
+  if (totalQtyEl) {
+    totalQtyEl.textContent = String(state.totalQty);
+  }
 
   const sendBtn = document.getElementById("sendBtn");
   if (sendBtn) {
-    // 変更がない、または保存中はボタンを無効化
     sendBtn.disabled = state.isSyncing || state.dirtyCount === 0;
-    // 変更がある場合は色を変えるためのクラスを付与
     sendBtn.classList.toggle("dirty", !state.isSyncing && state.dirtyCount > 0);
   }
 }

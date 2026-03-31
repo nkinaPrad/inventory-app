@@ -4,7 +4,7 @@
  * =========================
  */
 const GITHUB_JSON_URL = "https://raw.githubusercontent.com/nkinaPrad/inventory-app/main/data.json";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzcxHCv5cbaggJwl8sfNWQ1oCQZh5t5xRfza7SeH-UkXJKahPRJBD2LprQeBoZnYEmi6g/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz0HdzSg-7ABwypga37Fb0sn7EYDb0CtJ7o83wXEEHjRAVKspAtqT1FNgHiGq89Sj5DrA/exec";
 
 const ROOM_LABEL_MAP = {
   takadanobaba: "高田馬場",
@@ -31,11 +31,11 @@ const state = {
   isSyncing: false,
   totalQty: 0,
   dirtyCount: 0,
-  originalQtyMap: Object.create(null),
+  originalSnapshotMap: Object.create(null),
   renderToken: 0,
-  lastUpdatedAt: ""
+  lastUpdatedAt: "",
+  metaOpen: false
 };
-
 
 /**
  * =========================
@@ -50,7 +50,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initUI();
   await loadAppData();
 });
-
 
 /**
  * =========================
@@ -94,9 +93,21 @@ function initUI() {
   list.addEventListener("click", handleCounterClick);
   sendBtn.addEventListener("click", sendData);
 
-  updateMetaInfo();
-}
+  document.getElementById("metaToggleBtn").addEventListener("click", toggleMetaPanel);
+  document.getElementById("exportJsonBtn").addEventListener("click", exportJsonBackup);
+  document.getElementById("exportCsvBtn").addEventListener("click", exportCsvBackup);
+  document.getElementById("importJsonBtn").addEventListener("click", () => {
+    document.getElementById("importFileInput").click();
+  });
+  document.getElementById("importFileInput").addEventListener("change", importJsonBackup);
 
+  document.getElementById("addCustomBtn").addEventListener("click", openCustomDialog);
+  document.getElementById("cancelCustomBtn").addEventListener("click", closeCustomDialog);
+  document.getElementById("customItemForm").addEventListener("submit", handleCustomItemSubmit);
+
+  updateMetaInfo();
+  updateMetaPanelUI();
+}
 
 /**
  * =========================
@@ -109,23 +120,22 @@ async function loadAppData() {
 
   try {
     let masterData;
-    let invData = { success: true, inventory: {}, updatedAt: "" };
+    let invData = { success: true, inventory: {}, extraItems: [], updatedAt: "" };
 
-    if (state.roomKey) {
-      const [masterRes, invRes] = await Promise.all([
-        fetch(GITHUB_JSON_URL, { cache: "no-store" }),
-        fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, { cache: "no-store" })
-      ]);
-
-      if (!masterRes.ok) throw new Error("マスタデータの取得に失敗しました。");
-      if (!invRes.ok) throw new Error("在庫データの取得に失敗しました。");
-
-      masterData = await masterRes.json();
-      invData = await invRes.json();
+    // まずは data.js の MASTER_DATA を優先利用
+    if (Array.isArray(window.MASTER_DATA) && window.MASTER_DATA.length > 0) {
+      masterData = window.MASTER_DATA;
     } else {
+      // フォールバック: 従来のGitHub JSON取得
       const masterRes = await fetch(GITHUB_JSON_URL, { cache: "no-store" });
       if (!masterRes.ok) throw new Error("マスタデータの取得に失敗しました。");
       masterData = await masterRes.json();
+    }
+
+    if (state.roomKey) {
+      const invRes = await fetch(`${GAS_URL}?room=${encodeURIComponent(state.roomKey)}`, { cache: "no-store" });
+      if (!invRes.ok) throw new Error("在庫データの取得に失敗しました。");
+      invData = await invRes.json();
     }
 
     if (!Array.isArray(masterData)) {
@@ -135,37 +145,7 @@ async function loadAppData() {
       throw new Error(invData.message || "在庫データ取得に失敗しました。");
     }
 
-    const inventory = invData.inventory || {};
-    state.lastUpdatedAt = invData.updatedAt || "";
-
-    state.items = [];
-    state.itemsById = new Map();
-    state.originalQtyMap = Object.create(null);
-    state.totalQty = 0;
-    state.dirtyCount = 0;
-
-    for (let i = 0; i < masterData.length; i++) {
-      const m = masterData[i] || {};
-      const id = String(m.id || "").trim();
-      if (!id) continue;
-
-      const qty = Number(inventory[id]) || 0;
-
-      const item = {
-        id,
-        name: m.name || "名称不明",
-        category: m.category || "未分類",
-        subject: m.subject || "",
-        publisher: m.publisher || "",
-        qty,
-        searchTag: `${id} ${m.name || ""} ${m.category || ""} ${m.subject || ""} ${m.publisher || ""}`.toLowerCase()
-      };
-
-      state.items.push(item);
-      state.itemsById.set(id, item);
-      state.originalQtyMap[id] = qty;
-      state.totalQty += qty;
-    }
+    buildStateFromServer(masterData, invData);
 
     generateCategoryChips();
     updateStatsUI();
@@ -188,12 +168,104 @@ async function loadAppData() {
   }
 }
 
+function buildStateFromServer(masterData, invData) {
+  const inventory = invData.inventory || {};
+  const extraItems = Array.isArray(invData.extraItems) ? invData.extraItems : [];
 
-/**
- * =========================
- * カテゴリチップ生成
- * =========================
- */
+  state.lastUpdatedAt = invData.updatedAt || "";
+  state.items = [];
+  state.itemsById = new Map();
+  state.filteredItems = [];
+  state.totalQty = 0;
+  state.dirtyCount = 0;
+  state.originalSnapshotMap = Object.create(null);
+
+  for (let i = 0; i < masterData.length; i++) {
+    const m = masterData[i] || {};
+    const id = String(m.id || "").trim();
+    if (!id) continue;
+
+    const item = normalizeItem({
+      id,
+      name: m.name || "名称不明",
+      category: m.category || "未分類",
+      subject: m.subject || "",
+      publisher: m.publisher || "",
+      edition: m.edition || "",
+      qty: Number(inventory[id]) || 0,
+      isCustom: false
+    });
+
+    pushItemToState(item);
+  }
+
+  for (let i = 0; i < extraItems.length; i++) {
+    const ex = normalizeItem({
+      id: exOrDefault(extraItems[i]?.id, createCustomId_()),
+      name: exOrDefault(extraItems[i]?.name, "名称未設定"),
+      category: exOrDefault(extraItems[i]?.category, "未分類"),
+      subject: exOrDefault(extraItems[i]?.subject, ""),
+      publisher: exOrDefault(extraItems[i]?.publisher, ""),
+      edition: exOrDefault(extraItems[i]?.edition, ""),
+      qty: Number(extraItems[i]?.qty) || 0,
+      isCustom: true
+    });
+
+    pushItemToState(ex);
+  }
+}
+
+function exOrDefault(value, fallback) {
+  const s = String(value == null ? "" : value).trim();
+  return s || fallback;
+}
+
+function pushItemToState(item) {
+  if (!item.id) return;
+
+  state.items.push(item);
+  state.itemsById.set(item.id, item);
+  state.originalSnapshotMap[item.id] = snapshotKey(item);
+  state.totalQty += item.qty;
+}
+
+function normalizeItem(src) {
+  const item = {
+    id: String(src.id || "").trim(),
+    name: String(src.name || "名称不明").trim(),
+    category: String(src.category || "未分類").trim(),
+    subject: String(src.subject || "").trim(),
+    publisher: String(src.publisher || "").trim(),
+    edition: String(src.edition || "").trim(),
+    qty: Math.max(0, Number(src.qty) || 0),
+    isCustom: !!src.isCustom
+  };
+
+  item.searchTag = [
+    item.id,
+    item.name,
+    item.category,
+    item.subject,
+    item.publisher,
+    item.edition,
+    item.isCustom ? "マスタ外" : ""
+  ].join(" ").toLowerCase();
+
+  return item;
+}
+
+function snapshotKey(item) {
+  return JSON.stringify({
+    name: item.name,
+    category: item.category,
+    subject: item.subject,
+    publisher: item.publisher,
+    edition: item.edition,
+    qty: item.qty,
+    isCustom: !!item.isCustom
+  });
+}
+
 function generateCategoryChips() {
   const container = document.getElementById("filterArea");
   const categories = Array.from(
@@ -203,6 +275,7 @@ function generateCategoryChips() {
   let html = "";
   html += `<button type="button" class="f-chip active" data-filter="all">すべて</button>`;
   html += `<button type="button" class="f-chip" data-filter="input">入力済み</button>`;
+  html += `<button type="button" class="f-chip" data-filter="custom">マスタ外</button>`;
 
   for (let i = 0; i < categories.length; i++) {
     const c = categories[i];
@@ -212,12 +285,6 @@ function generateCategoryChips() {
   container.innerHTML = html;
 }
 
-
-/**
- * =========================
- * フィルタ・検索適用
- * =========================
- */
 function applyFilterAndRender() {
   const q = state.query;
   const filter = state.activeFilter;
@@ -228,6 +295,8 @@ function applyFilterAndRender() {
 
     if (filter === "input") {
       if (item.qty <= 0) continue;
+    } else if (filter === "custom") {
+      if (!item.isCustom) continue;
     } else if (filter !== "all") {
       if (item.category !== filter) continue;
     }
@@ -236,17 +305,19 @@ function applyFilterAndRender() {
     result.push(item);
   }
 
+  result.sort(compareItems_);
+
   state.filteredItems = result;
   updateMetaInfo();
   renderFilteredItems(result);
 }
 
+function compareItems_(a, b) {
+  if (a.isCustom !== b.isCustom) return a.isCustom ? -1 : 1;
+  if (a.category !== b.category) return a.category.localeCompare(b.category, "ja");
+  return a.name.localeCompare(b.name, "ja");
+}
 
-/**
- * =========================
- * 描画
- * =========================
- */
 function renderFilteredItems(items) {
   const container = document.getElementById("list");
   const token = ++state.renderToken;
@@ -284,18 +355,26 @@ function renderFilteredItems(items) {
   requestAnimationFrame(renderChunk);
 }
 
-
 function renderItemHTML(item) {
+  const metaTexts = [];
+  if (item.publisher) metaTexts.push(`出版社: ${item.publisher}`);
+  if (item.edition) metaTexts.push(`版/準拠: ${item.edition}`);
+
   return `
-    <article class="item ${item.qty > 0 ? "has-qty" : ""}" data-id="${escapeHtml(item.id)}">
+    <article class="item ${item.qty > 0 ? "has-qty" : ""} ${item.isCustom ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="item-main">
         <div class="item-badges">
-          <span class="badge badge-cat">${escapeHtml(item.category)}</span>
+          <span class="badge badge-cat">${escapeHtml(item.category || "未分類")}</span>
           ${item.subject ? `<span class="badge badge-sub">${escapeHtml(item.subject)}</span>` : ""}
           ${item.publisher ? `<span class="badge badge-pub">${escapeHtml(item.publisher)}</span>` : ""}
+          ${item.isCustom ? `<span class="badge badge-custom">マスタ外</span>` : ""}
         </div>
 
         <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-meta-text">
+          ${escapeHtml(item.id)}
+          ${metaTexts.length ? ` / ${escapeHtml(metaTexts.join(" / "))}` : ""}
+        </div>
       </div>
 
       <div class="qty-box">
@@ -307,12 +386,6 @@ function renderItemHTML(item) {
   `;
 }
 
-
-/**
- * =========================
- * 数量操作
- * =========================
- */
 function handleCounterClick(e) {
   const btn = e.target.closest("button");
   if (!btn) return;
@@ -344,32 +417,47 @@ function handleCounterClick(e) {
 
   card.classList.toggle("has-qty", newQty > 0);
 
-  applyStatsDelta(item.id, oldQty, newQty);
+  applyDirtyRecalcForItem(item);
+  updateStatsUI();
 
   if (state.activeFilter === "input" && newQty === 0) {
     applyFilterAndRender();
   }
 }
 
+function applyDirtyRecalcForItem(item) {
+  const original = state.originalSnapshotMap[item.id] || "";
+  const current = snapshotKey(item);
 
-/**
- * =========================
- * 統計更新
- * =========================
- */
-function applyStatsDelta(id, oldQty, newQty) {
-  state.totalQty += (newQty - oldQty);
+  const wasDirty = item.__dirty === true;
+  const isDirty = current !== original;
 
-  const originalQty = Number(state.originalQtyMap[id]) || 0;
-  const wasDirty = oldQty !== originalQty;
-  const isDirty = newQty !== originalQty;
+  item.__dirty = isDirty;
 
   if (!wasDirty && isDirty) state.dirtyCount++;
   if (wasDirty && !isDirty) state.dirtyCount--;
 
-  updateStatsUI();
+  recalcTotalQty();
 }
 
+function recalcAllDirtyFlags() {
+  let dirtyCount = 0;
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    const isDirty = snapshotKey(item) !== (state.originalSnapshotMap[item.id] || "");
+    item.__dirty = isDirty;
+    if (isDirty) dirtyCount++;
+  }
+  state.dirtyCount = dirtyCount;
+}
+
+function recalcTotalQty() {
+  let total = 0;
+  for (let i = 0; i < state.items.length; i++) {
+    total += Number(state.items[i].qty) || 0;
+  }
+  state.totalQty = total;
+}
 
 function updateStatsUI() {
   document.getElementById("changeCount").textContent = String(state.dirtyCount);
@@ -380,12 +468,6 @@ function updateStatsUI() {
   sendBtn.classList.toggle("dirty", !state.isSyncing && state.dirtyCount > 0);
 }
 
-
-/**
- * =========================
- * メタ表示更新
- * =========================
- */
 function updateMetaInfo() {
   const totalCountEl = document.getElementById("totalCount");
   const visibleCountEl = document.getElementById("visibleCount");
@@ -404,13 +486,19 @@ function updateMetaInfo() {
   }
 }
 
+function toggleMetaPanel() {
+  state.metaOpen = !state.metaOpen;
+  updateMetaPanelUI();
+}
 
-/**
- * =========================
- * 保存
- * =========================
- * 全件送信する
- */
+function updateMetaPanelUI() {
+  const panel = document.getElementById("metaPanel");
+  const btn = document.getElementById("metaToggleBtn");
+
+  panel.classList.toggle("open", state.metaOpen);
+  btn.textContent = state.metaOpen ? "詳細を閉じる" : "詳細を表示";
+}
+
 async function sendData() {
   if (!state.roomKey || state.isSyncing) return;
   if (state.dirtyCount === 0) return;
@@ -427,10 +515,17 @@ async function sendData() {
     btn.textContent = "保存中...";
     setStatus("保存中...");
 
-    // 全件 [id, qty] で送る
-    const payload = state.items.map(item => [item.id, item.qty]);
+    const payload = state.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      subject: item.subject,
+      publisher: item.publisher,
+      edition: item.edition,
+      qty: item.qty,
+      isCustom: !!item.isCustom
+    }));
 
-    // GASに届くようにパラメータを構築
     const params = new URLSearchParams();
     params.append("room", state.roomKey);
     params.append("payload", JSON.stringify(payload));
@@ -444,18 +539,13 @@ async function sendData() {
       body: params.toString()
     });
 
-    state.originalQtyMap = Object.create(null);
-    state.items.forEach(item => {
-      state.originalQtyMap[item.id] = item.qty;
-    });
-
-    state.dirtyCount = 0;
+    refreshOriginalSnapshotsAfterSave();
     state.lastUpdatedAt = formatNowJa();
 
     updateStatsUI();
     updateMetaInfo();
     setStatus("保存リクエスト送信完了");
-    alert("保存リクエストを送信しました。\n(反映には数秒かかる場合があります)");
+    alert("保存リクエストを送信しました。\n（反映には数秒かかる場合があります）");
 
   } catch (err) {
     console.error(err);
@@ -468,12 +558,218 @@ async function sendData() {
   }
 }
 
+function refreshOriginalSnapshotsAfterSave() {
+  state.originalSnapshotMap = Object.create(null);
 
-/**
- * =========================
- * ステータス
- * =========================
- */
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    state.originalSnapshotMap[item.id] = snapshotKey(item);
+    item.__dirty = false;
+  }
+
+  state.dirtyCount = 0;
+}
+
+function openCustomDialog() {
+  document.getElementById("customItemDialog").showModal();
+}
+
+function closeCustomDialog() {
+  document.getElementById("customItemDialog").close();
+}
+
+function handleCustomItemSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById("customName").value.trim();
+  const category = document.getElementById("customCategory").value.trim() || "未分類";
+  const subject = document.getElementById("customSubject").value.trim();
+  const publisher = document.getElementById("customPublisher").value.trim();
+  const edition = document.getElementById("customEdition").value.trim();
+  const qty = Math.max(0, Number(document.getElementById("customQty").value) || 0);
+
+  if (!name) {
+    alert("教材名を入力してください。");
+    return;
+  }
+
+  const item = normalizeItem({
+    id: createCustomId_(),
+    name,
+    category,
+    subject,
+    publisher,
+    edition,
+    qty,
+    isCustom: true
+  });
+
+  state.items.unshift(item);
+  state.itemsById.set(item.id, item);
+  state.originalSnapshotMap[item.id] = "";
+  item.__dirty = true;
+  state.dirtyCount++;
+
+  recalcTotalQty();
+  generateCategoryChips();
+  updateStatsUI();
+  applyFilterAndRender();
+
+  document.getElementById("customItemForm").reset();
+  document.getElementById("customQty").value = "1";
+  closeCustomDialog();
+  setStatus("マスタ外教材を追加しました。未保存の状態です。");
+}
+
+function createCustomId_() {
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `CUSTOM-${Date.now()}-${rand}`;
+}
+
+function exportJsonBackup() {
+  const data = {
+    exportedAt: formatNowJa(),
+    roomKey: state.roomKey,
+    roomLabel: state.roomLabel,
+    lastUpdatedAt: state.lastUpdatedAt,
+    items: state.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      subject: item.subject,
+      publisher: item.publisher,
+      edition: item.edition,
+      qty: item.qty,
+      isCustom: !!item.isCustom
+    }))
+  };
+
+  downloadTextFile_(
+    `${buildFileBaseName_()}_${formatNowFile_()}.json`,
+    JSON.stringify(data, null, 2),
+    "application/json"
+  );
+
+  setStatus("JSONバックアップを出力しました。");
+}
+
+function exportCsvBackup() {
+  const rows = [
+    ["校舎", "出力日時", "ID", "教材名", "カテゴリ", "教科", "出版社", "版/準拠", "数量", "マスタ外"]
+  ];
+
+  const exportedAt = formatNowJa();
+
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    rows.push([
+      state.roomLabel,
+      exportedAt,
+      item.id,
+      item.name,
+      item.category,
+      item.subject,
+      item.publisher,
+      item.edition,
+      item.qty,
+      item.isCustom ? "1" : "0"
+    ]);
+  }
+
+  const csv = rows.map(row => row.map(csvEscape_).join(",")).join("\r\n");
+
+  downloadTextFile_(
+    `${buildFileBaseName_()}_${formatNowFile_()}.csv`,
+    "\uFEFF" + csv,
+    "text/csv;charset=utf-8"
+  );
+
+  setStatus("CSVバックアップを出力しました。");
+}
+
+function downloadTextFile_(filename, text, mimeType) {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildFileBaseName_() {
+  return `inventory_${state.roomKey || "viewer"}`;
+}
+
+function formatNowFile_() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+}
+
+function csvEscape_(value) {
+  const s = String(value == null ? "" : value);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function importJsonBackup(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || "{}"));
+      if (!Array.isArray(data.items)) {
+        throw new Error("items 配列が見つかりません。");
+      }
+
+      const nextItems = data.items.map(item => normalizeItem(item));
+      state.items = nextItems;
+      state.itemsById = new Map();
+      for (let i = 0; i < nextItems.length; i++) {
+        state.itemsById.set(nextItems[i].id, nextItems[i]);
+      }
+
+      recalcAllDirtyFlags();
+      recalcTotalQty();
+      generateCategoryChips();
+      applyFilterAndRender();
+      updateStatsUI();
+
+      setStatus("JSONバックアップを読み込みました。保存前のため未反映です。");
+      alert("JSONを取り込みました。\nこの時点ではまだサーバー保存されていません。");
+
+    } catch (err) {
+      console.error(err);
+      alert(`JSON取込に失敗しました: ${err.message}`);
+      setStatus(`JSON取込失敗: ${err.message}`);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  reader.onerror = () => {
+    alert("ファイルの読み込みに失敗しました。");
+    e.target.value = "";
+  };
+
+  reader.readAsText(file, "utf-8");
+}
+
 function setStatus(msg) {
   const now = new Date().toLocaleTimeString("ja-JP");
   const el = document.getElementById("statusLine");
@@ -482,12 +778,6 @@ function setStatus(msg) {
   }
 }
 
-
-/**
- * =========================
- * ユーティリティ
- * =========================
- */
 function debounce(fn, wait) {
   let timer = null;
   return function (...args) {

@@ -128,8 +128,13 @@ body {
 
 .head-actions {
   flex: 0 0 auto;
+  /* ここから追加 */
+  display: flex;
+  align-items: center; /* 垂直方向の中央揃え */
+  gap: 8px;            /* ボタン間の隙間（お好みで調整） */
 }
 
+/* --- 共通の土台 --- */
 .btn-subtle {
   height: 38px;
   padding: 0 12px;
@@ -140,6 +145,40 @@ body {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex; /* 共通でflexにしておくと高さが揃いやすい */
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* --- サブボタン（…）専用の調整 --- */
+.btn-subtle.btn-subtle-other {
+  min-width: 44px;      /* iPadで押しやすく */
+  font-size: 20px;
+  font-weight: 40;
+  color: var(--sub);    /* 控えめな色 */
+  padding: 0;           /* 横幅を固定したいのでpaddingを消す */
+}
+
+/* --- メインボタン（追加）専用の調整 --- */
+.btn-subtle.btn-subtle-add {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  color: var(--success);
+  font-size: 14px;      /* 少し大きく */
+  padding: 0 16px;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.08);
+}
+
+/* --- タップした時の動き（共通） --- */
+.btn-subtle:active {
+  transform: scale(0.96);
+  filter: brightness(0.95); /* どの色のボタンでも少し暗くなって「押した感」を出す */
+}
+
+.btn-subtle.btn-subtle-add:active {
+  background: var(--success);
+  color: #fff;
 }
 
 .toolbar-card {
@@ -275,10 +314,29 @@ body {
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
+/* 選択中の教材（数量 1以上）を強調 */
 .item.has-qty {
-  border-color: #bfdbfe;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+  border-color: var(--primary); /* 青いボーダーを少しはっきりさせる */
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%); /* 青みを少し強める */
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12); /* 浮き出ている感を出す */
+  position: relative;
+  overflow: hidden; /* アクセントラインを角丸に収めるため */
+}
+
+/* 左側に青いアクセントラインを追加 */
+.item.has-qty::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px; /* ラインの太さ */
+  background: var(--primary);
+}
+
+/* 数字自体も太くして視認性アップ */
+.item.has-qty .qty-num {
+  color: var(--primary);
 }
 
 .item.custom-item {
@@ -312,15 +370,7 @@ body {
 .badge-cat { background: #e0ecff; color: #1d4ed8; }
 .badge-sub { background: #e8f7ec; color: #137333; }
 .badge-custom { background: #dcfce7; color: #166534; }
-
-.item-publisher-top {
-  margin-bottom: 4px;
-  font-size: 11px;
-  color: var(--sub-soft);
-  line-height: 1.4;
-  font-weight: 500;
-  word-break: break-word;
-}
+.badge-publisher { background: #e5e5e5; color: #222222; }
 
 .item-name {
   font-size: 16px;
@@ -448,26 +498,6 @@ body {
   gap: 4px;
 }
 
-.save-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 16px;
-  color: var(--sub-soft);
-  font-size: 11px;
-  line-height: 1.2;
-}
-
-.save-meta-label {
-  color: var(--sub-soft);
-  font-weight: 500;
-}
-
-.save-meta-value {
-  color: #667085;
-  font-weight: 600;
-}
-
 .btn-main,
 .btn-ghost,
 .btn-success {
@@ -551,28 +581,32 @@ dialog::backdrop {
   color: var(--sub);
 }
 
-.menu-item.menu-item-primary {
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-  color: var(--success);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.08);
-  transition: all 0.2s ease;
+/* ダイアログ内の注釈（控えめなメッセージ） */
+.menu-notice {
+  font-size: 11px;
+  color: var(--sub);
+  line-height: 1.6;
+  padding: 10px 12px;
+  background-color: var(--surface-2);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
 }
 
-.menu-item.menu-item-primary:active {
+/* メニュー項目のホバー・アクティブ効果 */
+.menu-item:active {
+  background-color: var(--surface-2);
   transform: scale(0.98);
-  background: var(--success);
-  color: #fff;
+  transition: transform 0.1s ease;
 }
 
-.menu-item.menu-item-primary::before {
-  font-weight: 800;
+/* 閉じるボタン（muted）のスタイル強調 */
+.menu-item.muted {
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 13px;
+  margin-top: 4px;
 }
 
 .modal-head,

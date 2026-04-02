@@ -363,11 +363,29 @@ body {
   min-width: 0;
 }
 
+.item-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 .item-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
+}
+
+.item-publisher-top {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--sub);
+  word-break: break-word;
 }
 
 .badge {
@@ -396,9 +414,7 @@ body {
 }
 
 .item-meta-text {
-  font-size: 12px;
-  color: var(--sub);
-  word-break: break-word;
+  display: none;
 }
 
 .qty-box {
@@ -711,6 +727,16 @@ dialog::backdrop {
     grid-template-columns: 1fr;
     gap: 12px;
     padding: 14px;
+  }
+
+  .item-topline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .item-publisher-top {
+    text-align: left;
   }
 
   .qty-box {

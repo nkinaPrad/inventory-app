@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>プラドアカデミー在庫棚卸</title>
+  <title>プラドアカデミー教材棚卸</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div class="top-panel-inner">
       <div class="head-main">
         <div class="title-wrap">
-          <h1 class="title">在庫管理</h1>
+          <h1 class="title">プラドアカデミー教材棚卸</h1>
           <div id="roomLabel" class="room-badge"></div>
         </div>
 
@@ -22,6 +22,17 @@
       </div>
 
       <div class="toolbar-card">
+        <div class="auth-bar" id="authBar">
+          <div class="auth-user-wrap">
+            <div id="authStatus" class="auth-status">ログイン状態を確認しています...</div>
+            <div id="authUserEmail" class="auth-user-email"></div>
+          </div>
+          <div class="auth-actions">
+            <button id="signInBtn" class="btn-subtle auth-btn" type="button">Googleでログイン</button>
+            <button id="signOutBtn" class="btn-subtle auth-btn" type="button" hidden>ログアウト</button>
+          </div>
+        </div>
+
         <div class="search-wrap">
           <input
             id="searchInput"
@@ -100,14 +111,11 @@
 
           <div class="form-row">
             <label for="customQtyValue">数量</label>
-
             <div class="qty-box custom-qty-box">
               <button id="customQtyMinus" type="button" class="qty-btn minus" aria-label="減らす">−</button>
               <div id="customQtyValue" class="qty-num num">1</div>
               <button id="customQtyPlus" type="button" class="qty-btn plus" aria-label="増やす">＋</button>
             </div>
-          </div>
-            
           </div>
         </div>
       </div>

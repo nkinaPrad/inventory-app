@@ -646,8 +646,6 @@ function escapeHtml(str) {
 
 function setStatus(msg) {
   state.lastStatusMessage = msg;
-  const el = document.getElementById("statusMessage");
-  if (el) el.textContent = msg;
 
   const line = document.getElementById("statusLine");
   if (line) line.textContent = msg;

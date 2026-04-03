@@ -54,8 +54,6 @@ const AUTO_SAVE_DELAY_MS = 5000;
 const INFO_MESSAGES = {
   LOCAL_PREVIEW: "ローカル確認用です。Firestore保存は行いません。",
   LOCAL_PREVIEW_NO_TOKEN: "ローカル確認用です。保存は行いません。",
-  ACCESS_CHECKING: "アクセス情報を確認しています...",
-  ACCESS_OK: "アクセス可能です。",
   LOADING: "データ同期中...",
   LOAD_DONE: "同期完了",
   NO_CHANGES: "変更はありません。",
@@ -304,7 +302,6 @@ function clearErrorMessage() {
 async function initAccessAndLoad() {
   try {
     clearErrorMessage();
-    setInfoMessage(INFO_MESSAGES.ACCESS_CHECKING);
 
     const tokenRef = doc(db, "inventory", state.token);
     const tokenSnap = await getDoc(tokenRef);
@@ -339,7 +336,6 @@ async function initAccessAndLoad() {
     state.accessGranted = true;
     setReadOnlyMode(false);
     clearErrorMessage();
-    setInfoMessage(INFO_MESSAGES.ACCESS_OK);
 
     await loadAppData();
   } catch (err) {

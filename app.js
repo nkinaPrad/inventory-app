@@ -1,9 +1,17 @@
 /**
  * ====================================================================
- * 教材在庫管理システム - Firestore masters 対応版 (app.js)
+ * 教材在庫管理システム - data.js マスタ利用版 (app.js)
+ * Googleログイン不要 / token付きURLでアクセス / 編集後5秒で1回だけ自動保存
+ *
+ * Firestore構成:
+ * - inventory/{token}                : token管理ドキュメント
+ * - inventory/{token}/items/{itemId} : 校舎ごとの在庫
+ *
+ * 教材マスタ:
+ * - data.js の MASTER_DATA を使用
  *
  * 通常教材:
- * - itemId = mastersのid
+ * - itemId = data.js の id
  * - inventory 側には qty, isCustom, updatedAt のみ保存
  *
  * 未登録教材:
@@ -43,10 +51,33 @@ const INITIAL_VISIBLE_COUNT = 30;
 const LOAD_MORE_COUNT = 30;
 const AUTO_SAVE_DELAY_MS = 5000;
 
-const RETRY_GUIDE_MESSAGE =
-  "自動保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。";
-const RETRY_SHORT_MESSAGE =
-  "未保存の変更があります。保存ボタンで再試行してください.";
+const INFO_MESSAGES = {
+  LOCAL_PREVIEW: "ローカル確認用です。Firestore保存は行いません。",
+  LOCAL_PREVIEW_NO_TOKEN: "ローカル確認用です。保存は行いません。",
+  ACCESS_CHECKING: "アクセス情報を確認しています...",
+  ACCESS_OK: "アクセス可能です。",
+  LOADING: "データ同期中...",
+  LOAD_DONE: "同期完了",
+  NO_CHANGES: "変更はありません。",
+  MANUAL_SAVING: "保存中...",
+  AUTO_SAVING: "自動保存中...",
+  MANUAL_SAVED: "保存しました。",
+  AUTO_SAVED: "自動保存しました。",
+  EDITING: "編集中"
+};
+
+const ERROR_MESSAGES = {
+  INVALID_URL: "URLが無効です。",
+  TOKEN_MISSING: "URLが無効です。token がありません。",
+  DISABLED_URL: "このURLは現在無効です。",
+  ACCESS_CHECK_FAILED: "アクセス確認に失敗しました。通信状態をご確認ください。",
+  LOAD_FAILED: "データ取得に失敗しました。",
+  SAVE_FAILED:
+    "保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。",
+  AUTO_SAVE_RETRY: "未保存の変更があります。保存ボタンで再試行してください。",
+  SAVE_NOT_ALLOWED: "このURLでは保存できません。",
+  ADD_CUSTOM_NOT_ALLOWED: "このURLでは未登録教材を追加できません。"
+};
 
 /**
  * アプリケーション状態
@@ -68,7 +99,6 @@ const state = {
   autoSaveTimerId: null,
   autoSaveSuspended: false,
   hasShownRetryNotice: false,
-  lastStatusMessage: "",
   isLocalPreview: false,
   accessReady: false,
   accessGranted: false,
@@ -99,27 +129,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     generateCategoryChips();
     applyFilterAndRender();
     updateStatsUI();
-    setStatus(
+
+    setInfoMessage(
       state.isLocalPreview
-        ? "ローカル確認用です。保存は行いません。"
-        : "URLが無効です。token がありません。"
+        ? INFO_MESSAGES.LOCAL_PREVIEW_NO_TOKEN
+        : ERROR_MESSAGES.TOKEN_MISSING
     );
+
+    if (!state.isLocalPreview) {
+      setErrorMessage(ERROR_MESSAGES.INVALID_URL);
+    }
+
     setReadOnlyMode(true);
-    updateAccessUI("有効なURLではありません。");
     return;
   }
 
   if (state.isLocalPreview) {
     state.roomLabel = "ローカル確認用";
     updateRoomLabel();
+
     const fallbackMasterData = getFallbackMasterData();
     buildStateFromSources(fallbackMasterData, new Map());
     generateCategoryChips();
     applyFilterAndRender();
     updateStatsUI();
-    setStatus("ローカル確認用です。Firestore保存は行いません。");
+
+    setInfoMessage(INFO_MESSAGES.LOCAL_PREVIEW);
+    clearErrorMessage();
     setReadOnlyMode(true);
-    updateAccessUI("ローカル確認用です。");
     return;
   }
 
@@ -159,7 +196,8 @@ function initUI() {
   filterArea?.addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip");
     if (!chip || chip.dataset.filter === state.activeFilter) return;
-    document.querySelectorAll(".f-chip").forEach(el => el.classList.remove("active"));
+
+    document.querySelectorAll(".f-chip").forEach((el) => el.classList.remove("active"));
     chip.classList.add("active");
     state.activeFilter = chip.dataset.filter;
     state.visibleCount = INITIAL_VISIBLE_COUNT;
@@ -170,7 +208,7 @@ function initUI() {
 
   sendBtn?.addEventListener("click", () => {
     if (!canEdit()) {
-      setStatus("このURLでは保存できません。");
+      setErrorMessage(ERROR_MESSAGES.SAVE_NOT_ALLOWED);
       return;
     }
     void sendData({ silent: false, isManualRetry: true });
@@ -181,7 +219,7 @@ function initUI() {
 
   document.getElementById("toolMenuBtnAddCustom")?.addEventListener("click", () => {
     if (!canEdit()) {
-      setStatus("このURLでは未登録教材を追加できません。");
+      setErrorMessage(ERROR_MESSAGES.ADD_CUSTOM_NOT_ALLOWED);
       return;
     }
     closeModal("toolMenuDialog");
@@ -211,13 +249,62 @@ function initUI() {
 
 /**
  * =========================
+ * メッセージ表示
+ * =========================
+ */
+
+function formatNow() {
+  return new Date().toLocaleString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
+function formatTimestamp(ts) {
+  if (!ts || typeof ts.toDate !== "function") return "";
+  return ts.toDate().toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function setInfoMessage(message, withTimestamp = true) {
+  const el = document.getElementById("infoMessage");
+  if (!el) return;
+  el.textContent = withTimestamp ? `${message} (${formatNow()})` : message;
+}
+
+function setErrorMessage(message = "") {
+  const el = document.getElementById("errorMessage");
+  if (!el) return;
+
+  if (!message) {
+    el.textContent = "";
+    el.hidden = true;
+    return;
+  }
+
+  el.textContent = message;
+  el.hidden = false;
+}
+
+function clearErrorMessage() {
+  setErrorMessage("");
+}
+
+/**
+ * =========================
  * tokenアクセス確認
  * =========================
  */
 async function initAccessAndLoad() {
   try {
-    setStatus("アクセス情報を確認しています...");
-    updateAccessUI("アクセス情報を確認しています...");
+    clearErrorMessage();
+    setInfoMessage(INFO_MESSAGES.ACCESS_CHECKING);
 
     const tokenRef = doc(db, "inventory", state.token);
     const tokenSnap = await getDoc(tokenRef);
@@ -227,9 +314,8 @@ async function initAccessAndLoad() {
 
     if (!tokenSnap.exists()) {
       setReadOnlyMode(true);
-      updateAccessUI("URLが無効です。");
-      setStatus("URLが無効です。");
-      renderEmptyMessage("このURLは無効です。");
+      setErrorMessage(ERROR_MESSAGES.INVALID_URL);
+      renderEmptyMessage(ERROR_MESSAGES.INVALID_URL);
       updateStatsUI();
       return;
     }
@@ -244,23 +330,23 @@ async function initAccessAndLoad() {
     if (tokenData.enabled !== true) {
       setReadOnlyMode(true);
       state.accessGranted = false;
-      updateAccessUI("このURLは現在無効です。");
-      setStatus("このURLは現在無効です。");
-      renderEmptyMessage("このURLは現在無効です。");
+      setErrorMessage(ERROR_MESSAGES.DISABLED_URL);
+      renderEmptyMessage(ERROR_MESSAGES.DISABLED_URL);
       updateStatsUI();
       return;
     }
 
     state.accessGranted = true;
-    updateAccessUI("アクセス可能です。");
     setReadOnlyMode(false);
+    clearErrorMessage();
+    setInfoMessage(INFO_MESSAGES.ACCESS_OK);
+
     await loadAppData();
   } catch (err) {
     console.error("アクセス確認失敗:", err);
     setReadOnlyMode(true);
-    updateAccessUI("アクセス確認に失敗しました。");
-    setStatus(`アクセス確認失敗: ${err.message}`);
-    renderEmptyMessage("アクセス確認に失敗しました。通信状態をご確認ください。");
+    setErrorMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
+    renderEmptyMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
     updateStatsUI();
   }
 }
@@ -285,13 +371,6 @@ function updateRoomLabel() {
   roomLabelEl.classList.add("muted");
 }
 
-function updateAccessUI(message) {
-  const authStatusEl = document.getElementById("authStatus");
-  if (authStatusEl) {
-    authStatusEl.textContent = message;
-  }
-}
-
 function canEdit() {
   return !!(state.token && state.accessGranted && !state.isLocalPreview);
 }
@@ -302,7 +381,8 @@ function canEdit() {
  * =========================
  */
 async function loadAppData() {
-  setStatus("データ同期中...");
+  clearErrorMessage();
+  setInfoMessage(INFO_MESSAGES.LOADING);
 
   try {
     const [masterData, inventoryMap] = await Promise.all([
@@ -310,35 +390,22 @@ async function loadAppData() {
       loadInventoryFromFirestore(state.token)
     ]);
 
-    buildStateFromSources(masterData, inventoryMap);
+    const latestUpdatedAt = getLatestUpdatedAt(inventoryMap);
 
+    buildStateFromSources(masterData, inventoryMap);
     generateCategoryChips();
     updateStatsUI();
     applyFilterAndRender();
 
-    // 最新更新時刻を取得
-    const latestUpdatedAt = getLatestUpdatedAt(inventoryMap);
-
     if (latestUpdatedAt) {
-      const date = latestUpdatedAt.toDate();
-
-      const timeStr = date.toLocaleString("ja-JP", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-
-      setStatus(`最終更新: ${timeStr}`);
+      setInfoMessage(`最終更新: ${formatTimestamp(latestUpdatedAt)}`, false);
     } else {
-      setStatus("同期完了");
+      setInfoMessage(INFO_MESSAGES.LOAD_DONE);
     }
-
   } catch (err) {
     console.error(err);
-    setStatus(`取得失敗: ${err.message}`);
-    renderEmptyMessage("データ取得に失敗しました。");
+    setErrorMessage(ERROR_MESSAGES.LOAD_FAILED);
+    renderEmptyMessage(ERROR_MESSAGES.LOAD_FAILED);
   }
 }
 
@@ -346,46 +413,14 @@ function getLatestUpdatedAt(inventoryMap) {
   let latest = null;
 
   inventoryMap.forEach((data) => {
-    if (!data.updatedAt) return;
-
+    if (!data?.updatedAt) return;
     const ts = data.updatedAt;
-    if (!latest || ts.seconds > latest.seconds) {
+    if (!latest || ts.seconds > latest.seconds || (ts.seconds === latest.seconds && ts.nanoseconds > latest.nanoseconds)) {
       latest = ts;
     }
   });
 
   return latest;
-}
-
-
-async function loadMasterDataFromFirestore() {
-  const masterList = [];
-  const mastersRef = collection(db, "masters");
-  const snapshot = await getDocs(mastersRef);
-
-  snapshot.forEach((docSnap) => {
-    const data = docSnap.data() || {};
-    masterList.push({
-      id: docSnap.id,
-      name: data.name || "",
-      category: data.category || "",
-      subject: data.subject || "",
-      publisher: data.publisher || "",
-      edition: data.edition || ""
-    });
-  });
-
-  if (masterList.length === 0) {
-    return getFallbackMasterData();
-  }
-
-  masterList.sort((a, b) => {
-    const aName = String(a.name || "");
-    const bName = String(b.name || "");
-    return aName.localeCompare(bName, "ja");
-  });
-
-  return masterList;
 }
 
 async function loadInventoryFromFirestore(token) {
@@ -475,7 +510,10 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   );
 
   if (dirtyItems.length === 0) {
-    if (!silent) setStatus("変更はありません。");
+    if (!silent) {
+      clearErrorMessage();
+      setInfoMessage(INFO_MESSAGES.NO_CHANGES);
+    }
     return true;
   }
 
@@ -485,7 +523,8 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 
   state.isSyncing = true;
   updateStatsUI();
-  setStatus(silent ? "自動保存中..." : "保存中...");
+  clearErrorMessage();
+  setInfoMessage(silent ? INFO_MESSAGES.AUTO_SAVING : INFO_MESSAGES.MANUAL_SAVING);
 
   try {
     for (const item of dirtyItems) {
@@ -518,7 +557,8 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
     state.autoSaveSuspended = false;
     state.hasShownRetryNotice = false;
     clearAutoSaveTimer();
-    setStatus(silent ? "自動保存しました。" : "保存しました。");
+    clearErrorMessage();
+    setInfoMessage(silent ? INFO_MESSAGES.AUTO_SAVED : INFO_MESSAGES.MANUAL_SAVED);
     return true;
   } catch (err) {
     console.error("保存失敗:", err);
@@ -527,10 +567,10 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 
     if (isManualRetry) {
       state.hasShownRetryNotice = false;
-      setStatus("保存に失敗しました。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。");
+      setErrorMessage(ERROR_MESSAGES.SAVE_FAILED);
     } else if (!state.hasShownRetryNotice) {
       state.hasShownRetryNotice = true;
-      setStatus(RETRY_GUIDE_MESSAGE);
+      setErrorMessage(ERROR_MESSAGES.AUTO_SAVE_RETRY);
     }
 
     return false;
@@ -542,16 +582,18 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 
 function scheduleAutoSave() {
   if (!canEdit()) return;
+
   clearAutoSaveTimer();
 
   if (state.dirtyCount === 0) return;
 
   if (state.autoSaveSuspended) {
-    setStatusOnce(RETRY_SHORT_MESSAGE);
+    setErrorMessage(ERROR_MESSAGES.AUTO_SAVE_RETRY);
     return;
   }
 
-  setStatus("編集中です。最後の操作から5秒後に自動保存します。");
+  clearErrorMessage();
+  setInfoMessage(INFO_MESSAGES.EDITING);
   state.autoSaveTimerId = setTimeout(() => {
     state.autoSaveTimerId = null;
     void sendData({ silent: true, isManualRetry: false });
@@ -725,16 +767,6 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function setStatus(msg) {
-  state.lastStatusMessage = msg;
-  const line = document.getElementById("statusLine");
-  if (line) line.textContent = msg;
-}
-
-function setStatusOnce(msg) {
-  setStatus(msg);
 }
 
 /**

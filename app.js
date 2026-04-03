@@ -377,8 +377,8 @@ async function loadInventoryFromFirestore(token) {
 }
 
 function getFallbackMasterData() {
-  if (Array.isArray(window.MASTER_DATA)) {
-    return window.MASTER_DATA;
+  if (Array.isArray(MASTER_DATA)) {
+    return MASTER_DATA;
   }
   return [];
 }

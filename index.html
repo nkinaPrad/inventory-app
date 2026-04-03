@@ -22,15 +22,8 @@
       </div>
 
       <div class="toolbar-card">
-        <div class="auth-bar" id="authBar">
-          <div class="auth-user-wrap">
-            <div id="authStatus" class="auth-status">ログイン状態を確認しています...</div>
-            <div id="authUserEmail" class="auth-user-email"></div>
-          </div>
-          <div class="auth-actions">
-            <button id="signInBtn" class="btn-subtle auth-btn" type="button">Googleでログイン</button>
-            <button id="signOutBtn" class="btn-subtle auth-btn" type="button" hidden>ログアウト</button>
-          </div>
+        <div class="access-bar" id="accessBar">
+          <div id="accessStatus" class="auth-status">アクセス情報を確認しています...</div>
         </div>
 
         <div class="search-wrap">
@@ -64,6 +57,9 @@
           <span class="summary-label">合計部数</span>
           <span id="totalQty" class="summary-value num">0</span>
           <span class="summary-unit">部</span>
+        </div>
+        <div class="summary-item">
+          <span id="dirtyCount" class="summary-label"></span>
         </div>
       </div>
 
@@ -126,6 +122,10 @@
       </div>
     </form>
   </dialog>
+
+  <footer class="bottom-info">
+    <div id="statusMessage" class="status-text"></div>
+  </footer>
 
   <script src="data.js"></script>
   <script type="module" src="app.js"></script>

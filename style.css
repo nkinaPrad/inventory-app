@@ -1,3 +1,6 @@
+/* ====================================================================
+   1. 基本設定・変数
+   ==================================================================== */
 :root {
   --bg: #f5f7fb;
   --surface: #ffffff;
@@ -22,23 +25,9 @@
 
 * { box-sizing: border-box; }
 
-/* クラス指定よりも優先されるように調整 */
-.input, .select, .search-input {
-  font-size: 16px !important;
-}
-
-.qty-btn, .btn-subtle, .f-chip, .btn-main {
-  touch-action: manipulation;
-  /* iPhoneでの長押し選択（テキスト選択）も防ぐとよりアプリらしくなります */
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 html, body {
   margin: 0;
   padding: 0;
-  
-  /* スクロールは許可し、ダブルタップズーム（操作）を無効にする */
   touch-action: manipulation;
 }
 
@@ -47,30 +36,28 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   background: linear-gradient(180deg, #f7f9fc 0%, #f2f5f9 100%);
   color: var(--text);
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Hiragino Sans",
-    "Hiragino Kaku Gothic ProN",
-    "Yu Gothic",
-    "Yu Gothic UI",
-    "Meiryo",
-    "Segoe UI",
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
   font-weight: 500;
   line-height: 1.5;
   font-feature-settings: "palt" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  -webkit-tap-highlight-color: transparent;
   padding-bottom: 110px;
 }
 
+/* 数値の等幅表示 */
 .num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
+/* iOSの自動ズーム防止 */
+.input, .select, .search-input {
+  font-size: 16px !important;
+}
+
+/* ====================================================================
+   2. レイアウト
+   ==================================================================== */
 .shell {
   max-width: var(--maxw);
   margin: 0 auto;
@@ -82,6 +69,7 @@ body {
   top: 0;
   z-index: 50;
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   background: rgba(247, 249, 252, 0.9);
   border-bottom: 1px solid rgba(208, 213, 221, 0.6);
 }
@@ -103,8 +91,6 @@ body {
 .title-wrap {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
   min-width: 0;
 }
 
@@ -112,44 +98,36 @@ body {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.01em;
   line-height: 1.3;
 }
 
 .room-badge {
-  display: inline-block;
-  width: auto;
-  max-width: 100%;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--sub);
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
+  color: var(--sub);
 }
 
 .room-badge::before {
   content: "教室：";
-  color: #98a2b3;
-  font-weight: 500;
+  color: var(--sub-soft);
 }
 
-.room-badge.muted {
-  color: #98a2b3;
+/* ====================================================================
+   3. ボタン・インタラクション
+   ==================================================================== */
+.qty-btn, .btn-subtle, .f-chip, .btn-main, .btn-ghost, .btn-success {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.head-actions {
-  flex: 0 0 auto;
-  /* ここから追加 */
-  display: flex;
-  align-items: center; /* 垂直方向の中央揃え */
-  gap: 8px;            /* ボタン間の隙間（お好みで調整） */
+.qty-btn:active, .btn-subtle:active, .btn-main:active {
+  transform: scale(0.96);
 }
 
-/* --- 共通の土台 --- */
+/* 上部アクションボタン共通 */
 .btn-subtle {
   height: 38px;
   padding: 0 12px;
@@ -159,43 +137,29 @@ body {
   color: #344054;
   font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
-  display: inline-flex; /* 共通でflexにしておくと高さが揃いやすい */
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
 }
 
-/* --- サブボタン（…）専用の調整 --- */
-.btn-subtle.btn-subtle-other {
-  min-width: 44px;      /* iPadで押しやすく */
-  font-size: 20px;
-  font-weight: 40;
-  color: var(--sub);    /* 控えめな色 */
-  padding: 0;           /* 横幅を固定したいのでpaddingを消す */
-}
-
-/* --- メインボタン（追加）専用の調整 --- */
-.btn-subtle.btn-subtle-add {
+.btn-subtle-add {
   background: var(--success-soft);
-  border: 1px solid var(--success);
+  border-color: var(--success);
   color: var(--success);
-  font-size: 14px;      /* 少し大きく */
   padding: 0 16px;
   box-shadow: 0 4px 12px rgba(21, 128, 61, 0.08);
 }
 
-/* --- タップした時の動き（共通） --- */
-.btn-subtle:active {
-  transform: scale(0.96);
-  filter: brightness(0.95); /* どの色のボタンでも少し暗くなって「押した感」を出す */
+.btn-subtle-other {
+  min-width: 44px;
+  font-size: 20px;
+  color: var(--sub);
+  padding: 0;
 }
 
-.btn-subtle.btn-subtle-add:active {
-  background: var(--success);
-  color: #fff;
-}
-
+/* ====================================================================
+   4. ツールバー（検索・フィルタ）
+   ==================================================================== */
 .toolbar-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(229, 231, 235, 0.9);
@@ -204,22 +168,13 @@ body {
   padding: 10px;
 }
 
-.search-wrap {
-  display: grid;
-  gap: 8px;
-}
-
 .search-input {
   width: 100%;
   height: 42px;
   border: 1px solid var(--line-2);
   border-radius: 12px;
   padding: 0 14px;
-  font-size: 14px;
-  font-weight: 500;
   outline: none;
-  background: #fff;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .search-input:focus {
@@ -231,13 +186,10 @@ body {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
   scrollbar-width: none;
+  padding: 4px 0;
 }
-
-.filter-scroll::-webkit-scrollbar {
-  display: none;
-}
+.filter-scroll::-webkit-scrollbar { display: none; }
 
 .f-chip {
   flex: 0 0 auto;
@@ -245,113 +197,47 @@ body {
   background: #fff;
   color: #344054;
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-  transition: all 0.15s ease;
-  white-space: nowrap;
 }
 
 .f-chip.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.24);
 }
 
-.meta-panel {
-  margin-top: 6px;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  display: block;
-}
-
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  align-items: center;
-  font-size: 11px;
-  color: var(--sub);
-  line-height: 1.5;
-}
-
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.meta-label {
-  color: var(--sub);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.meta-value {
-  color: #475467;
-  font-weight: 600;
-  word-break: break-word;
-}
-
-.status-line {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--sub-soft);
-  min-height: 14px;
-  line-height: 1.4;
-}
-
-.list-wrap {
-  margin-top: 14px;
-}
-
-#list {
-  display: grid;
-  gap: 12px;
-}
+/* ====================================================================
+   5. 教材リスト・アイテム
+   ==================================================================== */
+.list-wrap { margin-top: 14px; }
+#list { display: grid; gap: 12px; }
 
 .item {
-  background: rgba(255, 255, 255, 0.96);
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: 18px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
   padding: 14px 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
-}
-
-/* 選択中の教材（数量 1以上）を強調 */
-.item.has-qty {
-  border-color: var(--primary); /* 青いボーダーを少しはっきりさせる */
-  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%); /* 青みを少し強める */
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12); /* 浮き出ている感を出す */
   position: relative;
-  overflow: hidden; /* アクセントラインを角丸に収めるため */
+  overflow: hidden;
 }
 
-/* 左側に青いアクセントラインを追加 */
+.item.has-qty {
+  border-color: var(--primary);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%);
+}
+
 .item.has-qty::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px; /* ラインの太さ */
+  left: 0; top: 0; bottom: 0;
+  width: 5px;
   background: var(--primary);
-}
-
-/* 数字自体も太くして視認性アップ */
-.item.has-qty .qty-num {
-  color: var(--primary);
 }
 
 .item.custom-item {
@@ -359,59 +245,21 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f3fff6 100%);
 }
 
-.item-main {
-  min-width: 0;
-}
-
-.item-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.badge-cat { background: #e0ecff; color: #1d4ed8; }
-.badge-sub { background: #e8f7ec; color: #137333; }
-.badge-custom { background: #dcfce7; color: #166534; }
-.badge-publisher { background: #e5e5e5; color: #222222; }
-
 .item-name {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.5;
-  margin-bottom: 4px;
-  word-break: break-word;
-}
-
-.item-meta-text {
-  font-size: 12px;
-  color: var(--sub);
-  word-break: break-word;
+  word-break: break-all;
 }
 
 .qty-box {
   display: inline-grid;
   grid-template-columns: 44px 56px 44px;
   align-items: center;
-  justify-items: center;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 14px;
   padding: 4px;
-  gap: 4px;
-  flex: 0 0 auto;
 }
 
 .qty-btn {
@@ -419,142 +267,77 @@ body {
   height: 44px;
   border: none;
   background: #f8fafc;
-  color: #111827;
   border-radius: 10px;
   font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
 }
 
 .qty-num {
-  min-width: 56px;
   text-align: center;
   font-size: 22px;
   font-weight: 700;
-  color: #111827;
 }
 
-.empty {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px dashed var(--line-2);
-  border-radius: 18px;
-  text-align: center;
-  color: var(--sub);
-  padding: 56px 16px;
-  line-height: 1.9;
-  font-size: 14px;
+.badge {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 4px;
 }
+.badge-cat { background: #e0ecff; color: #1d4ed8; }
+.badge-sub { background: #e8f7ec; color: #137333; }
+.badge-publisher { background: #e5e5e5; color: #222; }
 
+/* ====================================================================
+   6. フッター（ボトムバー）
+   ==================================================================== */
 .bottom-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 0; right: 0; bottom: 0;
   z-index: 60;
   padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
   background: rgba(247, 249, 252, 0.92);
   backdrop-filter: blur(12px);
-  border-top: 1px solid rgba(208, 213, 221, 0.7);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line-2);
 }
 
 .bottom-inner {
   max-width: var(--maxw);
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(229, 231, 235, 0.95);
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 18px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-  padding: 10px 12px;
+  padding: 10px 14px;
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 12px;
   align-items: center;
-}
-
-.bottom-inner.compact {
-  grid-template-columns: 1fr auto;
-}
-
-.summary-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  align-items: center;
-}
-
-.summary-item {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.summary-label {
-  font-size: 12px;
-  color: var(--sub);
-  font-weight: 600;
 }
 
 .summary-value {
   font-size: 22px;
   font-weight: 700;
-  color: #111827;
-  line-height: 1;
 }
 
-.summary-unit {
-  font-size: 12px;
-  color: var(--sub);
-  font-weight: 600;
-}
-
-.bottom-actions {
-  display: grid;
-  justify-items: end;
-  gap: 4px;
-}
-
-.btn-main,
-.btn-ghost,
-.btn-success {
+.btn-main, .btn-ghost, .btn-success {
   min-width: 120px;
   height: 44px;
-  border: none;
   border-radius: 12px;
-  padding: 0 14px;
   font-size: 14px;
   font-weight: 700;
-  cursor: pointer;
+  border: none;
 }
 
-.btn-main {
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
-}
+.btn-main { background: var(--primary); color: #fff; }
+.btn-main.dirty { background: var(--danger); }
+.btn-main:disabled { background: #cbd5e1; cursor: not-allowed; }
+.btn-ghost { background: #fff; color: #344054; border: 1px solid var(--line); }
+.btn-success { background: var(--success); color: #fff; }
 
-.btn-main:disabled {
-  background: #cbd5e1;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-.btn-main.dirty {
-  background: var(--danger);
-  box-shadow: 0 12px 24px rgba(220, 38, 38, 0.2);
-}
-
-.btn-ghost {
-  background: #fff;
-  color: #344054;
-  border: 1px solid var(--line);
-}
-
-.btn-success {
-  background: var(--success);
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(21, 128, 61, 0.18);
-}
-
+/* ====================================================================
+   7. ダイアログ・フォーム
+   ==================================================================== */
 dialog {
   width: min(560px, calc(100vw - 24px));
   border: none;
@@ -565,314 +348,50 @@ dialog {
 
 dialog::backdrop {
   background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(4px);
 }
 
-.menu-dialog {
-  width: min(320px, calc(100vw - 24px));
-  border-radius: 16px;
-  padding: 8px;
-}
+.modal-head, .modal-body, .modal-foot { padding: 16px; }
+.modal-head { border-bottom: 1px solid var(--line); }
+.modal-foot { border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
 
-.menu-list {
-  display: grid;
-  gap: 6px;
-}
+.form-row { display: grid; gap: 6px; margin-bottom: 12px; }
+.form-row label { font-size: 13px; font-weight: 700; }
 
-.menu-item {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: #344054;
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.menu-item.muted {
-  color: var(--sub);
-}
-
-/* ダイアログ内の注釈（控えめなメッセージ） */
-.menu-notice {
-  font-size: 11px;
-  color: var(--sub);
-  line-height: 1.6;
-  padding: 10px 12px;
-  background-color: var(--surface-2);
-  border-radius: 10px;
-  margin-bottom: 12px;
-  border: 1px solid var(--line);
-}
-
-/* メニュー項目のホバー・アクティブ効果 */
-.menu-item:active {
-  background-color: var(--surface-2);
-  transform: scale(0.98);
-  transition: transform 0.1s ease;
-}
-
-/* 閉じるボタン（muted）のスタイル強調 */
-.menu-item.muted {
-  border: none;
-  background: transparent;
-  text-align: center;
-  font-size: 13px;
-  margin-top: 4px;
-}
-
-.modal-head,
-.modal-body,
-.modal-foot {
-  padding: 16px;
-}
-
-.modal-head {
-  border-bottom: 1px solid var(--line);
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.modal-body {
-  display: grid;
-  gap: 12px;
-}
-
-.form-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.form-row {
-  display: grid;
-  gap: 6px;
-}
-
-.form-row label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #344054;
-}
-
-.input,
-.select {
+.input, .select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line-2);
   border-radius: 12px;
   padding: 10px 12px;
-  font-size: 14px;
-  background: #fff;
 }
 
-.modal-foot {
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
+/* ====================================================================
+   8. モバイル対応
+   ==================================================================== */
 @media (max-width: 700px) {
-  body {
-    padding-bottom: 132px;
-  }
-
-  .shell,
-  .top-panel-inner,
-  .bottom-bar {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .head-main {
-    align-items: center;
-  }
-
-  .title {
-    font-size: 16px;
-  }
-
-  .room-badge {
-    font-size: 11px;
-  }
-
-  .status-line {
-    font-size: 10px;
-  }
-
-  .item {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .qty-box {
-    justify-self: stretch;
-    grid-template-columns: 44px 1fr 44px;
-    width: 100%;
-  }
-
-  .qty-num {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .bottom-inner,
-  .bottom-inner.compact {
-    grid-template-columns: 1fr;
-  }
-
-  .bottom-actions {
-    justify-items: stretch;
-  }
-
-  .save-meta {
-    justify-content: flex-end;
-  }
-
-  .btn-main,
-  .btn-ghost,
-  .btn-success {
-    width: 100%;
-  }
-
-  .modal-foot {
-    flex-direction: column;
-  }
+  body { padding-bottom: 140px; }
+  .item { grid-template-columns: 1fr; }
+  .qty-box { grid-template-columns: 44px 1fr 44px; width: 100%; }
+  .bottom-inner { grid-template-columns: 1fr; gap: 12px; }
+  .btn-main, .btn-ghost, .btn-success { width: 100%; }
+  .modal-foot { flex-direction: column; }
 }
 
-@media (max-width: 420px) {
-  .head-main {
-    align-items: flex-start;
-  }
-
-  .title-wrap {
-    gap: 1px;
-  }
-
-  .title {
-    font-size: 15px;
-  }
-
-  .btn-subtle {
-    height: 36px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-
-  .toolbar-card,
-  .item,
-  .bottom-inner {
-    border-radius: 14px;
-  }
-
-  .summary-value {
-    font-size: 20px;
-  }
-
-  .item-publisher-top {
-    font-size: 10px;
-  }
-
-  .save-meta {
-    font-size: 10px;
-  }
-}
-
-.auth-bar {
+/* その他ユーティリティ */
+.access-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
   margin-bottom: 10px;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.9);
 }
 
-.auth-user-wrap {
-  min-width: 0;
-}
-
-.auth-status {
+.access-status {
   font-size: 12px;
-  color: #344054;
   font-weight: 700;
-  line-height: 1.4;
 }
 
-.auth-user-email {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--sub);
-  word-break: break-all;
-}
-
-.auth-actions {
-  display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.auth-btn {
-  min-width: 120px;
-}
-
-.item-topline {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-  margin-bottom: 6px;
-}
-
-.item-publisher-top {
-  font-size: 11px;
-  color: var(--sub);
-  text-align: right;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.readonly-mode .qty-btn,
-.readonly-mode #toolMenuBtnAddCustom {
-  opacity: 0.5;
-}
-
-.qty-btn:disabled,
-.btn-subtle:disabled,
-.btn-main:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-@media (max-width: 640px) {
-  .auth-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .auth-actions {
-    width: 100%;
-  }
-
-  .auth-btn {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .item-topline {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .item-publisher-top {
-    text-align: left;
-  }
-}
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }

@@ -1,8 +1,20 @@
 /**
  * ====================================================================
- * 教材在庫管理システム - Firestore token URL 対応版 (app.js)
+ * 教材在庫管理システム - Firestore masters 対応版 (app.js)
  * Googleログイン不要 / token付きURLでアクセス / 編集後5秒で1回だけ自動保存
- * 保存先: inventory/{token}/items/{itemId}
+ *
+ * Firestore構成:
+ * - inventory/{token}                       : token管理ドキュメント
+ * - inventory/{token}/items/{itemId}        : 校舎ごとの在庫
+ * - masters/{id}                            : 教材マスタ
+ *
+ * 通常教材:
+ * - itemId = mastersのid
+ * - inventory 側には qty, isCustom, updatedAt のみ保存
+ *
+ * 未登録教材:
+ * - itemId = custom_xxxxxxxxxx
+ * - inventory 側に name 等も保存
  * ====================================================================
  */
 
@@ -40,7 +52,7 @@ const AUTO_SAVE_DELAY_MS = 5000;
 const RETRY_GUIDE_MESSAGE =
   "自動保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。";
 const RETRY_SHORT_MESSAGE =
-  "未保存の変更があります。保存ボタンで再試行してください。";
+  "未保存の変更があります。保存ボタンで再試行してください.";
 
 /**
  * アプリケーション状態
@@ -88,7 +100,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initUI();
 
   if (!state.token) {
-    buildStateFromFirestore(MASTER_DATA, new Map());
+    const fallbackMasterData = getFallbackMasterData();
+    buildStateFromSources(fallbackMasterData, new Map());
     generateCategoryChips();
     applyFilterAndRender();
     updateStatsUI();
@@ -105,7 +118,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (state.isLocalPreview) {
     state.roomLabel = "ローカル確認用";
     updateRoomLabel();
-    buildStateFromFirestore(MASTER_DATA, new Map());
+    const fallbackMasterData = getFallbackMasterData();
+    buildStateFromSources(fallbackMasterData, new Map());
     generateCategoryChips();
     applyFilterAndRender();
     updateStatsUI();
@@ -165,7 +179,7 @@ function initUI() {
       setStatus("このURLでは保存できません。");
       return;
     }
-    sendData({ silent: false, isManualRetry: true });
+    void sendData({ silent: false, isManualRetry: true });
   });
 
   document.getElementById("toolMenuBtn")?.addEventListener("click", () => openModal("toolMenuDialog"));
@@ -229,12 +243,13 @@ async function initAccessAndLoad() {
     const tokenData = tokenSnap.data() || {};
     state.tokenDocData = tokenData;
 
+    state.roomKey = String(tokenData.roomKey || "").trim().toLowerCase();
+    state.roomLabel = String(tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "").trim();
+    updateRoomLabel();
+
     if (tokenData.enabled !== true) {
       setReadOnlyMode(true);
       state.accessGranted = false;
-      state.roomKey = String(tokenData.roomKey || "").trim();
-      state.roomLabel = String(tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "").trim();
-      updateRoomLabel();
       updateAccessUI("このURLは現在無効です。");
       setStatus("このURLは現在無効です。");
       renderEmptyMessage("このURLは現在無効です。");
@@ -243,10 +258,6 @@ async function initAccessAndLoad() {
     }
 
     state.accessGranted = true;
-    state.roomKey = String(tokenData.roomKey || "").trim().toLowerCase();
-    state.roomLabel = String(tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "").trim();
-
-    updateRoomLabel();
     updateAccessUI("アクセス可能です。");
     setReadOnlyMode(false);
     await loadAppData();
@@ -282,23 +293,8 @@ function updateRoomLabel() {
 
 function updateAccessUI(message) {
   const authStatusEl = document.getElementById("authStatus");
-  const authUserEmailEl = document.getElementById("authUserEmail");
-  const signInBtn = document.getElementById("signInBtn");
-  const signOutBtn = document.getElementById("signOutBtn");
-
   if (authStatusEl) {
     authStatusEl.textContent = message;
-  }
-  if (authUserEmailEl) {
-    authUserEmailEl.textContent = "";
-  }
-  if (signInBtn) {
-    signInBtn.hidden = true;
-    signInBtn.style.display = "none";
-  }
-  if (signOutBtn) {
-    signOutBtn.hidden = true;
-    signOutBtn.style.display = "none";
   }
 }
 
@@ -316,8 +312,12 @@ async function loadAppData() {
   setStatus("データ同期中...");
 
   try {
-    const inventoryMap = await loadInventoryFromFirestore(state.token);
-    buildStateFromFirestore(MASTER_DATA, inventoryMap);
+    const [masterData, inventoryMap] = await Promise.all([
+      loadMasterDataFromFirestore(),
+      loadInventoryFromFirestore(state.token)
+    ]);
+
+    buildStateFromSources(masterData, inventoryMap);
 
     generateCategoryChips();
     updateStatsUI();
@@ -330,6 +330,36 @@ async function loadAppData() {
     setStatus(`取得失敗: ${err.message}`);
     renderEmptyMessage("データ取得に失敗しました。");
   }
+}
+
+async function loadMasterDataFromFirestore() {
+  const masterList = [];
+  const mastersRef = collection(db, "masters");
+  const snapshot = await getDocs(mastersRef);
+
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    masterList.push({
+      id: docSnap.id,
+      name: data.name || "",
+      category: data.category || "",
+      subject: data.subject || "",
+      publisher: data.publisher || "",
+      edition: data.edition || ""
+    });
+  });
+
+  if (masterList.length === 0) {
+    return getFallbackMasterData();
+  }
+
+  masterList.sort((a, b) => {
+    const aName = String(a.name || "");
+    const bName = String(b.name || "");
+    return aName.localeCompare(bName, "ja");
+  });
+
+  return masterList;
 }
 
 async function loadInventoryFromFirestore(token) {
@@ -346,7 +376,14 @@ async function loadInventoryFromFirestore(token) {
   return inventoryMap;
 }
 
-function buildStateFromFirestore(masterData, inventoryMap) {
+function getFallbackMasterData() {
+  if (Array.isArray(window.MASTER_DATA)) {
+    return window.MASTER_DATA;
+  }
+  return [];
+}
+
+function buildStateFromSources(masterData, inventoryMap) {
   state.items = [];
   state.itemsById = new Map();
   state.originalSnapshotMap = Object.create(null);
@@ -362,7 +399,12 @@ function buildStateFromFirestore(masterData, inventoryMap) {
 
     const savedData = inventoryMap.get(id) || {};
     const item = normalizeItem({
-      ...m,
+      id,
+      name: m.name || "",
+      category: m.category || "",
+      subject: m.subject || "",
+      publisher: m.publisher || "",
+      edition: m.edition || "",
       qty: Number(savedData.qty) || 0,
       isCustom: false
     });
@@ -373,8 +415,13 @@ function buildStateFromFirestore(masterData, inventoryMap) {
 
   inventoryMap.forEach((data, id) => {
     const item = normalizeItem({
-      ...data,
       id,
+      name: data.name || "名称未設定",
+      category: data.category || "未登録教材",
+      subject: data.subject || "",
+      publisher: data.publisher || "",
+      edition: data.edition || "",
+      qty: Number(data.qty) || 0,
       isCustom: true
     });
     pushItemToState(item);
@@ -417,20 +464,25 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   try {
     for (const item of dirtyItems) {
       const ref = doc(db, "inventory", state.token, "items", item.id);
-      await setDoc(
-        ref,
-        {
-          name: item.name,
-          category: item.category,
-          subject: item.subject,
-          publisher: item.publisher,
-          edition: item.edition,
-          qty: item.qty,
-          isCustom: item.isCustom,
-          updatedAt: serverTimestamp()
-        },
-        { merge: true }
-      );
+
+      const payload = item.isCustom
+        ? {
+            name: item.name,
+            category: item.category,
+            subject: item.subject,
+            publisher: item.publisher,
+            edition: item.edition,
+            qty: item.qty,
+            isCustom: true,
+            updatedAt: serverTimestamp()
+          }
+        : {
+            qty: item.qty,
+            isCustom: false,
+            updatedAt: serverTimestamp()
+          };
+
+      await setDoc(ref, payload, { merge: true });
 
       state.originalSnapshotMap[item.id] = snapshotKey(item);
       item.__dirty = false;
@@ -597,8 +649,8 @@ function debounce(func, wait) {
 /**
  * アイテムの初期化（正規化）
  */
-function normalizeItem(raw, idFromFirestore = null) {
-  const id = idFromFirestore || String(raw.id || "").trim();
+function normalizeItem(raw) {
+  const id = String(raw.id || "").trim();
   const item = {
     id,
     name: raw.name || "名称未設定",
@@ -626,9 +678,14 @@ function normalizeItem(raw, idFromFirestore = null) {
 
 /**
  * 変更検知用のスナップショット作成
+ * 通常教材は qty のみ変更対象
+ * custom は表示情報も含めて変更対象
  */
 function snapshotKey(item) {
-  return `${item.id}_${item.qty}_${item.name}_${item.publisher}_${item.edition}_${item.category}_${item.subject}_${item.isCustom ? 1 : 0}`;
+  if (item.isCustom) {
+    return `${item.id}_${item.qty}_${item.name}_${item.publisher}_${item.edition}_${item.category}_${item.subject}_1`;
+  }
+  return `${item.id}_${item.qty}_0`;
 }
 
 /**
@@ -646,7 +703,6 @@ function escapeHtml(str) {
 
 function setStatus(msg) {
   state.lastStatusMessage = msg;
-
   const line = document.getElementById("statusLine");
   if (line) line.textContent = msg;
 }
@@ -805,15 +861,22 @@ async function importJsonBackup(e) {
       }
 
       json.items.forEach((importedItem) => {
-        const target = state.itemsById.get(importedItem.id);
+        const importedId = String(importedItem.id || "").trim();
+        if (!importedId) return;
+
+        const target = state.itemsById.get(importedId);
+
         if (target) {
           target.qty = Number(importedItem.qty) || 0;
-          target.name = importedItem.name || target.name;
-          target.category = importedItem.category || target.category;
-          target.subject = importedItem.subject || target.subject;
-          target.publisher = importedItem.publisher || target.publisher;
-          target.edition = importedItem.edition || target.edition;
-          target.isCustom = !!importedItem.isCustom;
+
+          if (target.isCustom) {
+            target.name = importedItem.name || target.name;
+            target.category = importedItem.category || target.category;
+            target.subject = importedItem.subject || target.subject;
+            target.publisher = importedItem.publisher || target.publisher;
+            target.edition = importedItem.edition || target.edition;
+          }
+
           target.searchTag = [
             target.name,
             target.category,
@@ -825,7 +888,16 @@ async function importJsonBackup(e) {
             .join(" ")
             .toLowerCase();
         } else if (importedItem.isCustom) {
-          pushItemToState(normalizeItem(importedItem));
+          pushItemToState(normalizeItem({
+            id: importedId,
+            name: importedItem.name || "名称未設定",
+            category: importedItem.category || "未登録教材",
+            subject: importedItem.subject || "",
+            publisher: importedItem.publisher || "",
+            edition: importedItem.edition || "",
+            qty: Number(importedItem.qty) || 0,
+            isCustom: true
+          }));
         }
       });
 

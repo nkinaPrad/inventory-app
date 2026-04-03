@@ -252,6 +252,19 @@ body {
   word-break: break-all;
 }
 
+.item-publisher-top {
+  font-size: 11px;
+  color: var(--sub-soft);
+  font-weight: 500;
+}
+
+.item-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
 .qty-box {
   display: inline-grid;
   grid-template-columns: 44px 56px 44px;

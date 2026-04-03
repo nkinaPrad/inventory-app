@@ -1,12 +1,6 @@
 /**
  * ====================================================================
  * 教材在庫管理システム - Firestore masters 対応版 (app.js)
- * Googleログイン不要 / token付きURLでアクセス / 編集後5秒で1回だけ自動保存
- *
- * Firestore構成:
- * - inventory/{token}                       : token管理ドキュメント
- * - inventory/{token}/items/{itemId}        : 校舎ごとの在庫
- * - masters/{id}                            : 教材マスタ
  *
  * 通常教材:
  * - itemId = mastersのid
@@ -308,7 +302,6 @@ function canEdit() {
  * =========================
  */
 async function loadAppData() {
-  const started = performance.now();
   setStatus("データ同期中...");
 
   try {
@@ -323,14 +316,47 @@ async function loadAppData() {
     updateStatsUI();
     applyFilterAndRender();
 
-    const sec = ((performance.now() - started) / 1000).toFixed(2);
-    setStatus(`同期完了: ${sec}秒`);
+    // 最新更新時刻を取得
+    const latestUpdatedAt = getLatestUpdatedAt(inventoryMap);
+
+    if (latestUpdatedAt) {
+      const date = latestUpdatedAt.toDate();
+
+      const timeStr = date.toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+      setStatus(`最終更新: ${timeStr}`);
+    } else {
+      setStatus("同期完了");
+    }
+
   } catch (err) {
     console.error(err);
     setStatus(`取得失敗: ${err.message}`);
     renderEmptyMessage("データ取得に失敗しました。");
   }
 }
+
+function getLatestUpdatedAt(inventoryMap) {
+  let latest = null;
+
+  inventoryMap.forEach((data) => {
+    if (!data.updatedAt) return;
+
+    const ts = data.updatedAt;
+    if (!latest || ts.seconds > latest.seconds) {
+      latest = ts;
+    }
+  });
+
+  return latest;
+}
+
 
 async function loadMasterDataFromFirestore() {
   const masterList = [];

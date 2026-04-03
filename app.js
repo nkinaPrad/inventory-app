@@ -313,7 +313,7 @@ async function loadAppData() {
 
   try {
     const [masterData, inventoryMap] = await Promise.all([
-      loadMasterDataFromFirestore(),
+      Promise.resolve(getFallbackMasterData()),
       loadInventoryFromFirestore(state.token)
     ]);
 

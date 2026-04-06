@@ -23,35 +23,49 @@
   --maxw: 1180px;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   touch-action: manipulation;
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   background: linear-gradient(180deg, #f7f9fc 0%, #f2f5f9 100%);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
   font-weight: 500;
   line-height: 1.5;
   font-feature-settings: "palt" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: 110px;
+  padding-bottom: 120px;
 }
 
-/* 数値の等幅表示 */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 .num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
-/* iOSの自動ズーム防止 */
-.input, .select, .search-input {
+.input,
+.select,
+.search-input {
   font-size: 16px !important;
 }
 
@@ -99,12 +113,14 @@ body {
   font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
+  letter-spacing: 0.02em;
 }
 
 .room-badge {
   font-size: 12px;
   font-weight: 600;
   color: var(--sub);
+  min-height: 18px;
 }
 
 .room-badge::before {
@@ -112,10 +128,30 @@ body {
   color: var(--sub-soft);
 }
 
+.room-badge.muted,
+.muted {
+  color: var(--sub-soft);
+}
+
+.head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 /* ====================================================================
    3. ボタン・インタラクション
    ==================================================================== */
-.qty-btn, .btn-subtle, .f-chip, .btn-main, .btn-ghost, .btn-success {
+.qty-btn,
+.btn-subtle,
+.f-chip,
+.btn-main,
+.btn-ghost,
+.btn-success,
+.menu-item {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -123,11 +159,30 @@ body {
   transition: all 0.2s ease;
 }
 
-.qty-btn:active, .btn-subtle:active, .btn-main:active {
-  transform: scale(0.96);
+.qty-btn:active,
+.btn-subtle:active,
+.btn-main:active,
+.btn-ghost:active,
+.btn-success:active,
+.menu-item:active {
+  transform: scale(0.97);
 }
 
-/* 上部アクションボタン共通 */
+.qty-btn:focus-visible,
+.btn-subtle:focus-visible,
+.f-chip:focus-visible,
+.btn-main:focus-visible,
+.btn-ghost:focus-visible,
+.btn-success:focus-visible,
+.menu-item:focus-visible,
+.search-input:focus-visible,
+.input:focus-visible,
+.select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+/* 上部アクションボタン */
 .btn-subtle {
   height: 38px;
   padding: 0 12px;
@@ -140,6 +195,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
+}
+
+.btn-subtle:hover {
+  background: #f8fafc;
 }
 
 .btn-subtle-add {
@@ -148,6 +208,10 @@ body {
   color: var(--success);
   padding: 0 16px;
   box-shadow: 0 4px 12px rgba(21, 128, 61, 0.08);
+}
+
+.btn-subtle-add:hover {
+  background: #dff7e8;
 }
 
 .btn-subtle-other {
@@ -168,6 +232,38 @@ body {
   padding: 10px;
 }
 
+.access-bar {
+  display: grid;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.info-message {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--sub-soft);
+  font-weight: 500;
+  min-height: 16px;
+}
+
+.error-message {
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.search-wrap {
+  display: grid;
+  gap: 8px;
+}
+
 .search-input {
   width: 100%;
   height: 42px;
@@ -175,6 +271,12 @@ body {
   border-radius: 12px;
   padding: 0 14px;
   outline: none;
+  background: #fff;
+  color: var(--text);
+}
+
+.search-input::placeholder {
+  color: var(--sub-soft);
 }
 
 .search-input:focus {
@@ -189,7 +291,10 @@ body {
   scrollbar-width: none;
   padding: 4px 0;
 }
-.filter-scroll::-webkit-scrollbar { display: none; }
+
+.filter-scroll::-webkit-scrollbar {
+  display: none;
+}
 
 .f-chip {
   flex: 0 0 auto;
@@ -200,6 +305,11 @@ body {
   padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.f-chip:hover {
+  background: #f8fafc;
 }
 
 .f-chip.active {
@@ -208,22 +318,37 @@ body {
   color: #fff;
 }
 
+.f-chip.chip-custom {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.f-chip.chip-custom:hover {
+  background: #dff7e8;
+}
+
 .f-chip.chip-custom.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
-.f-chip.chip-custom {
-  border-color: var(--success);
-  background: var(--success-soft)
+.meta-panel.always-open {
+  min-height: 0;
 }
 
 /* ====================================================================
    5. 教材リスト・アイテム
    ==================================================================== */
-.list-wrap { margin-top: 14px; }
-#list { display: grid; gap: 12px; }
+.list-wrap {
+  margin-top: 14px;
+}
+
+#list {
+  display: grid;
+  gap: 12px;
+}
 
 .item {
   background: #fff;
@@ -236,6 +361,7 @@ body {
   align-items: center;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .item.has-qty {
@@ -246,7 +372,9 @@ body {
 .item.has-qty::before {
   content: "";
   position: absolute;
-  left: 0; top: 0; bottom: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
   width: 5px;
   background: var(--primary);
 }
@@ -256,24 +384,80 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f3fff6 100%);
 }
 
+.item.custom-item.has-qty {
+  border-color: var(--success);
+  background: linear-gradient(180deg, #ffffff 0%, #ecfdf3 100%);
+}
+
+.item.custom-item.has-qty::before {
+  background: var(--success);
+}
+
+.item-main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.item-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
 .item-name {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.5;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .item-publisher-top {
   font-size: 11px;
   color: var(--sub-soft);
   font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
-.item-topline {
-  display: flex;
-  justify-content: space-between;
+.badge {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.badge-cat {
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.badge-sub {
+  background: #e8f7ec;
+  color: #137333;
+}
+
+.badge-custom {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-publisher {
+  background: #e5e5e5;
+  color: #222;
 }
 
 .qty-box {
@@ -284,6 +468,11 @@ body {
   background: #fff;
   border-radius: 14px;
   padding: 4px;
+  flex-shrink: 0;
+}
+
+.custom-qty-box {
+  width: fit-content;
 }
 
 .qty-btn {
@@ -293,32 +482,48 @@ body {
   background: #f8fafc;
   border-radius: 10px;
   font-size: 24px;
+  color: var(--text);
+}
+
+.qty-btn:hover {
+  background: #eef2f7;
+}
+
+.qty-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
 .qty-num {
   text-align: center;
   font-size: 22px;
   font-weight: 700;
+  padding: 0 4px;
 }
 
-.badge {
-  display: inline-flex;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  margin-right: 4px;
+.empty {
+  border: 1px dashed var(--line-2);
+  border-radius: 16px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--sub);
+  background: rgba(255, 255, 255, 0.7);
 }
-.badge-cat { background: #e0ecff; color: #1d4ed8; }
-.badge-sub { background: #e8f7ec; color: #137333; }
-.badge-publisher { background: #e5e5e5; color: #222; }
+
+.readonly-mode .qty-btn:not(:disabled) {
+  pointer-events: none;
+}
 
 /* ====================================================================
    6. フッター（ボトムバー）
    ==================================================================== */
 .bottom-bar {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 60;
   padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
   background: rgba(247, 249, 252, 0.92);
@@ -337,14 +542,54 @@ body {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
+  gap: 12px;
+}
+
+.bottom-inner.compact {
+  grid-template-columns: 1fr auto;
+}
+
+.summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+}
+
+.summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--sub);
+  font-weight: 600;
 }
 
 .summary-value {
   font-size: 22px;
   font-weight: 700;
+  line-height: 1;
 }
 
-.btn-main, .btn-ghost, .btn-success {
+.summary-unit {
+  font-size: 12px;
+  color: var(--sub-soft);
+  font-weight: 600;
+}
+
+.bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn-main,
+.btn-ghost,
+.btn-success {
   min-width: 120px;
   height: 44px;
   border-radius: 12px;
@@ -353,11 +598,43 @@ body {
   border: none;
 }
 
-.btn-main { background: var(--primary); color: #fff; }
-.btn-main.dirty { background: var(--danger); }
-.btn-main:disabled { background: #cbd5e1; cursor: not-allowed; }
-.btn-ghost { background: #fff; color: #344054; border: 1px solid var(--line); }
-.btn-success { background: var(--success); color: #fff; }
+.btn-main {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-main:hover:not(:disabled) {
+  filter: brightness(0.98);
+}
+
+.btn-main.dirty {
+  background: var(--danger);
+}
+
+.btn-main:disabled {
+  background: #cbd5e1;
+  color: #fff;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: #fff;
+  color: #344054;
+  border: 1px solid var(--line);
+}
+
+.btn-ghost:hover {
+  background: #f8fafc;
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+}
+
+.btn-success:hover {
+  filter: brightness(0.98);
+}
 
 /* ====================================================================
    7. ダイアログ・フォーム
@@ -368,6 +645,7 @@ dialog {
   border-radius: 18px;
   padding: 0;
   box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
+  background: #fff;
 }
 
 dialog::backdrop {
@@ -375,59 +653,192 @@ dialog::backdrop {
   backdrop-filter: blur(4px);
 }
 
-.modal-head, .modal-body, .modal-foot { padding: 16px; }
-.modal-head { border-bottom: 1px solid var(--line); }
-.modal-foot { border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+.menu-dialog {
+  width: min(520px, calc(100vw - 24px));
+}
 
-.form-row { display: grid; gap: 6px; margin-bottom: 12px; }
-.form-row label { font-size: 13px; font-weight: 700; }
+.menu-notice {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--sub);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
 
-.input, .select {
+.menu-list {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.menu-item {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.menu-item:hover {
+  background: #f8fafc;
+}
+
+.menu-item.muted {
+  color: var(--sub);
+}
+
+.modal-head,
+.modal-body,
+.modal-foot {
+  padding: 16px;
+}
+
+.modal-head {
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-body {
+  padding-top: 14px;
+}
+
+.modal-foot {
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-row {
+  display: grid;
+  gap: 6px;
+}
+
+.form-row label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.input,
+.select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line-2);
   border-radius: 12px;
   padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--sub-soft);
+}
+
+.input:focus,
+.select:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+  outline: none;
 }
 
 /* ====================================================================
    8. モバイル対応
    ==================================================================== */
+@media (max-width: 900px) {
+  .head-main {
+    align-items: stretch;
+  }
+
+  .head-actions {
+    max-width: 48%;
+  }
+}
+
 @media (max-width: 700px) {
-  body { padding-bottom: 140px; }
-  .item { grid-template-columns: 1fr; }
-  .qty-box { grid-template-columns: 44px 1fr 44px; width: 100%; }
-  .bottom-inner { grid-template-columns: 1fr; gap: 12px; }
-  .btn-main, .btn-ghost, .btn-success { width: 100%; }
-  .modal-foot { flex-direction: column; }
+  body {
+    padding-bottom: 148px;
+  }
+
+  .shell {
+    padding: 12px 12px 24px;
+  }
+
+  .top-panel-inner {
+    padding: 10px 12px;
+  }
+
+  .head-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .head-actions {
+    max-width: none;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .head-actions .btn-subtle {
+    flex: 1 1 auto;
+  }
+
+  .item {
+    grid-template-columns: 1fr;
+  }
+
+  .qty-box {
+    grid-template-columns: 44px 1fr 44px;
+    width: 100%;
+  }
+
+  .item-publisher-top {
+    text-align: left;
+    width: 100%;
+  }
+
+  .bottom-inner,
+  .bottom-inner.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-actions {
+    width: 100%;
+  }
+
+  .btn-main,
+  .btn-ghost,
+  .btn-success {
+    width: 100%;
+  }
+
+  .modal-foot {
+    flex-direction: column;
+  }
 }
 
-/* その他ユーティリティ */
-.access-bar {
-  display: grid;
-  gap: 6px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
-  margin-bottom: 10px;
+/* ====================================================================
+   9. 入力補助
+   ==================================================================== */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.info-message {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--sub-soft);
-  font-weight: 500;
+input[type="number"] {
+  -moz-appearance: textfield;
 }
-
-.error-message {
-  font-size: 12px;
-  line-height: 1.5;
-  font-weight: 700;
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  padding: 8px 10px;
-}
-
-input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=number] { -moz-appearance: textfield; }

@@ -1,7 +1,6 @@
 /**
  * ====================================================================
  * 教材在庫管理システム - data.js マスタ利用版 (app.js)
- * Googleログイン不要 / token付きURLでアクセス / 編集後5秒で1回だけ自動保存
  *
  * Firestore構成:
  * - inventory/{token}                : token管理ドキュメント
@@ -1032,10 +1031,10 @@ function handleCustomItemSubmit(e) {
   e.target.reset();
 
   const qtyInput = document.getElementById("customQtyInput");
-  if (qtyInput) qtyInput.value = "1";
+  if (qtyInput) qtyInput.value = "0";
 
   const qtyValue = document.getElementById("customQtyValue");
-  if (qtyValue) qtyValue.textContent = "1";
+  if (qtyValue) qtyValue.textContent = "0";
 
   closeModal("customItemDialog");
 

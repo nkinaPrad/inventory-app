@@ -203,9 +203,15 @@ body {
 }
 
 .f-chip.active {
-  background: var(--primary) important!;
-  border-color: var(--primary) important!;
-  color: #fff important!;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.f-chip.chip-custom.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 .f-chip.chip-custom {

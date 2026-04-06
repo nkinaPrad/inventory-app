@@ -616,9 +616,9 @@ function generateCategoryChips() {
   );
 
   const isActive = (key) => (state.activeFilter === key ? " active" : "");
-  let html = `<button type="button" class="f-chip${isActive("all")}" data-filter="all">すべて</button>`;
+  let html = `<button type="button" class="f-chip${isActive("custom")}" data-filter="custom">未登録</button>`;
+  html += `<button type="button" class="f-chip${isActive("all")}" data-filter="all">すべて</button>`;
   html += `<button type="button" class="f-chip${isActive("input")}" data-filter="input">入力済み</button>`;
-  html += `<button type="button" class="f-chip${isActive("custom")}" data-filter="custom">未登録教材</button>`;
 
   categories
     .filter((c) => c && c !== "未登録教材")

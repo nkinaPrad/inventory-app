@@ -123,10 +123,6 @@ body {
   transition: all 0.2s ease;
 }
 
-.f-chip.chip-custom {
-  border-color: var(--success);
-}
-
 .qty-btn:active, .btn-subtle:active, .btn-main:active {
   transform: scale(0.96);
 }
@@ -207,9 +203,14 @@ body {
 }
 
 .f-chip.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background: var(--primary) important!;
+  border-color: var(--primary) important!;
+  color: #fff important!;
+}
+
+.f-chip.chip-custom {
+  border-color: var(--success);
+  background: var(--success-soft)
 }
 
 /* ====================================================================

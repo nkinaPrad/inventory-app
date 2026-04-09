@@ -167,16 +167,6 @@ textarea {
   user-select: none;
   -webkit-user-select: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.qty-btn:active,
-.btn-subtle:active,
-.btn-main:active,
-.btn-ghost:active,
-.btn-success:active,
-.menu-item:active {
-  transform: scale(0.97);
 }
 
 .qty-btn:focus-visible,
@@ -301,12 +291,7 @@ textarea {
   padding: 6px 0 2px;
 }
 
-.filter-main {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
+.filter-main,
 .filter-sub {
   display: flex;
   gap: 8px;
@@ -315,8 +300,17 @@ textarea {
   padding: 2px 0;
 }
 
+.filter-main::-webkit-scrollbar,
 .filter-sub::-webkit-scrollbar {
   display: none;
+}
+
+.filter-main {
+  flex-wrap: nowrap;
+}
+
+.filter-sub {
+  flex-wrap: nowrap;
 }
 
 .f-chip {
@@ -336,10 +330,6 @@ textarea {
 .f-chip:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
-}
-
-.f-chip.active {
-  transform: translateY(-1px);
 }
 
 .f-chip:not(.chip-all):not(.chip-custom):not(.chip-input):hover {
@@ -369,7 +359,7 @@ textarea {
   background: var(--success);
   border-color: var(--success);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(21, 128, 61, 0.22);
+  box-shadow: 0 6px 14px rgba(21, 128, 61, 0.16);
 }
 
 .f-chip.chip-input {
@@ -387,7 +377,7 @@ textarea {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.16);
 }
 
 .f-chip.chip-all {
@@ -436,11 +426,6 @@ textarea {
   position: relative;
   overflow: hidden;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
-}
-
-.item:active {
-  transform: scale(0.995);
 }
 
 .item.has-qty {
@@ -458,9 +443,10 @@ textarea {
   background: var(--primary);
 }
 
+/* 未登録教材でも qty=0 のときは通常カードと同じ白背景 */
 .item.custom-item {
-  border-color: #bbf7d0;
-  background: linear-gradient(180deg, #ffffff 0%, #f3fff6 100%);
+  border-color: var(--line);
+  background: #fff;
 }
 
 .item.custom-item.has-qty {
@@ -897,13 +883,9 @@ dialog::backdrop {
     flex: 1 1 auto;
   }
 
-  .filter-main {
-    gap: 8px;
-  }
-
+  .filter-main,
   .filter-sub {
     gap: 8px;
-    padding-top: 2px;
   }
 
   .f-chip {

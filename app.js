@@ -9,11 +9,13 @@
  * 4. 保存: 編集後5秒の自動保存、または手動保存。変更があったアイテムのみ送信。
  * 5. オフライン対策: JSONファイルへの書き出し・読み込み機能を搭載。
  *
- * 【今回の追加】
+ * 【今回の調整】
+ * - フィルタチップ上段を「未登録 / 入力済み / すべて」に変更
+ * - 未登録教材でも qty=0 のときは通常カードと同じ見た目に統一
+ * - 数量の増減に関する過度な演出をなくし、落ち着いたUIに調整
  * - カード全体タップで +1
  *   ※ 数量エリア(.qty-box)内は除外
  *   ※ スクロール時の誤反応を避けるため touchmove 量で判定
- * - フィルタチップを2段レイアウト化
  * - 数量の直接入力に対応
  * ====================================================================
  */
@@ -646,12 +648,11 @@ function generateCategoryChips() {
   const isActive = (key) => (state.activeFilter === key ? " active" : "");
 
   let mainHtml = "";
+  mainHtml += `<button type="button" class="f-chip chip-custom${isActive("custom")}" data-filter="custom">未登録</button>`;
   mainHtml += `<button type="button" class="f-chip chip-input${isActive("input")}" data-filter="input">入力済み</button>`;
   mainHtml += `<button type="button" class="f-chip chip-all${isActive("all")}" data-filter="all">すべて</button>`;
 
   let subHtml = "";
-  subHtml += `<button type="button" class="f-chip chip-custom${isActive("custom")}" data-filter="custom">未登録</button>`;
-
   categories
     .filter((c) => c && c !== "未登録教材")
     .forEach((c) => {
@@ -913,7 +914,7 @@ function handleListTouchEnd(e) {
   const target = e.target;
 
   if (target.id === "loadMoreBtn") return;
-  if (target.closest(".qty-box")) return;   // 数量エリアはカードタップ無効
+  if (target.closest(".qty-box")) return;
   if (target.closest(".qty-input")) return;
   if (target.closest(".qty-btn")) return;
 
@@ -931,7 +932,6 @@ function handleQtyInputFocusIn(e) {
   const input = e.target.closest(".qty-input");
   if (!input) return;
 
-  /* タップ時に全選択しやすくする */
   setTimeout(() => {
     try {
       input.select();

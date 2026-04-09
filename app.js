@@ -749,7 +749,7 @@ function renderFilteredItems() {
 function renderItemHTML(item) {
   const topMeta = [item.publisher, item.edition].filter(Boolean).join(" / ");
   return `
-    <article class="item ${item.qty > 0 ? "has-qty" : ""} ${item.isCustom ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
+    <article class="item ${item.qty > 0 ? "has-qty" : ""} ${item.isCustom && hasQty ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="item-main">
         <div class="item-topline">
           <div class="item-badges">
@@ -934,6 +934,7 @@ function changeQty(id, diff) {
     const numEl = itemEl.querySelector(".qty-num");
     if (numEl) numEl.textContent = item.qty;
     itemEl.classList.toggle("has-qty", item.qty > 0);
+    itemEl.classList.toggle("custom-item", item.isCustom && item.qty > 0);
   }
 
   updateStatsUI();

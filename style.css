@@ -327,8 +327,14 @@ textarea {
 }
 
 .f-chip.active {
-  color: #fff;
   transform: translateY(-1px);
+}
+
+.f-chip.active:not(.chip-all):not(.chip-custom):not(.chip-input) {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #1f2937;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
 /* 未登録 = 緑系の特別チップ */
@@ -373,18 +379,19 @@ textarea {
 .f-chip.chip-all {
   background: #fff;
   border-color: var(--neutral-chip-border);
-  color: #475467;
+  color: #344054;
 }
 
 .f-chip.chip-all:hover {
-  background: var(--neutral-chip);
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .f-chip.chip-all.active {
-  background: #344054;
-  border-color: #344054;
-  color: #fff;
-  box-shadow: 0 6px 14px rgba(52, 64, 84, 0.18);
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #1f2937;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
 .meta-panel.always-open {

@@ -8,7 +8,7 @@
   --text: #1f2937;
   --sub: #667085;
   --sub-soft: #98a2b3;
-  --line: #e5e7eb;
+  --line: #0f0f40;
   --line-2: #d0d5dd;
 
   --primary: #2563eb;
@@ -338,9 +338,9 @@ textarea {
 }
 
 .f-chip.active:not(.chip-all):not(.chip-custom):not(.chip-input) {
-  background: #e5e7eb;
+  background: #0f0f40;
   border-color: #d1d5db;
-  color: #1f2937;
+  color: #fff;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
@@ -392,9 +392,9 @@ textarea {
 }
 
 .f-chip.chip-all.active {
-  background: #e5e7eb;
+  background: #0f0f40;
   border-color: #d1d5db;
-  color: #1f2937;
+  color: #fff;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 

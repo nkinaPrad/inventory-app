@@ -330,6 +330,11 @@ textarea {
   transform: translateY(-1px);
 }
 
+.f-chip:not(.chip-all):not(.chip-custom):not(.chip-input):hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
 .f-chip.active:not(.chip-all):not(.chip-custom):not(.chip-input) {
   background: #e5e7eb;
   border-color: #d1d5db;

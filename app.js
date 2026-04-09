@@ -748,8 +748,10 @@ function renderFilteredItems() {
  */
 function renderItemHTML(item) {
   const topMeta = [item.publisher, item.edition].filter(Boolean).join(" / ");
+  const hasQty = item.qty > 0;
+
   return `
-    <article class="item ${item.qty > 0 ? "has-qty" : ""} ${item.isCustom && hasQty ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
+    <article class="item ${hasQty ? "has-qty" : ""} ${item.isCustom && hasQty ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="item-main">
         <div class="item-topline">
           <div class="item-badges">

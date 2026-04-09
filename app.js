@@ -913,6 +913,10 @@ function handleListTouchEnd(e) {
 
   const target = e.target;
 
+  // .item-main 内の要素であるかチェック
+  if (!target.closest(".item-main")) return;
+
+  // 念のため他の要素でないこともチェック
   if (target.id === "loadMoreBtn") return;
   if (target.closest(".qty-box")) return;
   if (target.closest(".qty-input")) return;

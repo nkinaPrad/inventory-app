@@ -8,7 +8,7 @@
   --text: #1f2937;
   --sub: #667085;
   --sub-soft: #98a2b3;
-  --line: #0f0f40;
+  --line: #e5e7eb;
   --line-2: #d0d5dd;
 
   --primary: #2563eb;
@@ -286,31 +286,25 @@ textarea {
 }
 
 .filter-scroll {
-  display: grid;
+  display: flex;
   gap: 8px;
   padding: 6px 0 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .filter-main,
 .filter-sub {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 2px 0;
+  display: contents;
 }
 
 .filter-main::-webkit-scrollbar,
 .filter-sub::-webkit-scrollbar {
   display: none;
-}
-
-.filter-main {
-  flex-wrap: nowrap;
-}
-
-.filter-sub {
-  flex-wrap: nowrap;
 }
 
 .f-chip {

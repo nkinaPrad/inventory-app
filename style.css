@@ -188,12 +188,12 @@ textarea {
 .menu-item:focus-visible,
 .search-input:focus-visible,
 .input:focus-visible,
-.select:focus-visible {
+.select:focus-visible,
+.qty-input:focus-visible {
   outline: none;
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
-/* 上部アクションボタン */
 .btn-subtle {
   height: 38px;
   padding: 0 12px;
@@ -296,14 +296,26 @@ textarea {
 }
 
 .filter-scroll {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  display: grid;
+  gap: 8px;
   padding: 6px 0 2px;
 }
 
-.filter-scroll::-webkit-scrollbar {
+.filter-main {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-sub {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.filter-sub::-webkit-scrollbar {
   display: none;
 }
 
@@ -342,7 +354,6 @@ textarea {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
-/* 未登録 = 緑系の特別チップ */
 .f-chip.chip-custom {
   border-color: #86efac;
   background: var(--success-soft);
@@ -361,7 +372,6 @@ textarea {
   box-shadow: 0 6px 14px rgba(21, 128, 61, 0.22);
 }
 
-/* 入力済み = 青系の特別チップ */
 .f-chip.chip-input {
   border-color: #93c5fd;
   background: var(--primary-soft);
@@ -380,7 +390,6 @@ textarea {
   box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
 }
 
-/* すべて = 中立 */
 .f-chip.chip-all {
   background: #fff;
   border-color: var(--neutral-chip-border);
@@ -419,7 +428,7 @@ textarea {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 14px 16px;
+  padding: 10px 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
@@ -427,6 +436,11 @@ textarea {
   position: relative;
   overflow: hidden;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.item:active {
+  transform: scale(0.995);
 }
 
 .item.has-qty {
@@ -527,13 +541,15 @@ textarea {
 
 .qty-box {
   display: inline-grid;
-  grid-template-columns: 44px 56px 44px;
+  grid-template-columns: 44px 64px 44px;
   align-items: center;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 14px;
   padding: 4px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .custom-qty-box {
@@ -561,6 +577,25 @@ textarea {
   color: #94a3b8;
 }
 
+.qty-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 0 4px;
+  border-radius: 10px;
+}
+
+.qty-input:focus {
+  background: #f8fbff;
+}
+
 .qty-num {
   text-align: center;
   font-size: 22px;
@@ -577,7 +612,8 @@ textarea {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.readonly-mode .qty-btn:not(:disabled) {
+.readonly-mode .qty-btn:not(:disabled),
+.readonly-mode .qty-input:not(:disabled) {
   pointer-events: none;
 }
 
@@ -861,9 +897,13 @@ dialog::backdrop {
     flex: 1 1 auto;
   }
 
-  .filter-scroll {
+  .filter-main {
     gap: 8px;
-    padding-top: 4px;
+  }
+
+  .filter-sub {
+    gap: 8px;
+    padding-top: 2px;
   }
 
   .f-chip {
@@ -876,8 +916,19 @@ dialog::backdrop {
   }
 
   .qty-box {
-    grid-template-columns: 44px 1fr 44px;
+    grid-template-columns: 56px 1fr 56px;
     width: 100%;
+  }
+
+  .qty-box button {
+    min-width: 56px;
+    height: 56px;
+    font-size: 20px;
+  }
+
+  .qty-input {
+    height: 56px;
+    font-size: 22px;
   }
 
   .item-publisher-top {

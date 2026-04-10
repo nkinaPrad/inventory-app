@@ -94,9 +94,23 @@
       一時的に通信ができないときには、ローカルにファイルを保存してください。（時間をおいても解決しない場合、本部までお知らせください）
     </div>
     <div class="menu-list">
+      <button id="viewInputtedListBtn" class="menu-item" type="button">&#x5165;&#x529B;&#x6E08;&#x307F;&#x6559;&#x6750;&#x4E00;&#x89A7;</button>
       <button id="exportJsonBtn" class="menu-item" type="button">ファイルに保存</button>
       <button id="importJsonBtn" class="menu-item" type="button">ファイルを読込</button>
       <button id="closeToolMenuBtn" class="menu-item muted" type="button">閉じる</button>
+    </div>
+  </dialog>
+
+  <dialog id="inputtedItemsDialog" class="menu-dialog">
+    <div class="modal-head">
+      <h2 class="modal-title">&#x5165;&#x529B;&#x6E08;&#x307F;&#x6559;&#x6750;&#x4E00;&#x89A7;</h2>
+    </div>
+    <div class="modal-body">
+      <div id="inputtedItemsSummary" class="info-message"></div>
+      <div id="inputtedItemsList" class="review-list"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="closeInputtedItemsBtn" class="btn-ghost" type="button">&#x9589;&#x3058;&#x308B;</button>
     </div>
   </dialog>
 
@@ -135,6 +149,7 @@
       </div>
 
       <div class="modal-foot">
+        <button id="deleteCustomBtn" class="btn-ghost danger" type="button" hidden>&#x524A;&#x9664;</button>
         <button id="cancelCustomBtn" class="btn-ghost" type="button">閉じる</button>
         <button id="saveCustomBtn" class="btn-success" type="submit">追加する</button>
       </div>

@@ -11,6 +11,7 @@ import {
   getDoc,
   doc,
   setDoc,
+  deleteDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
@@ -80,7 +81,10 @@ const state = {
   accessReady: false,
   accessGranted: false,
   tokenDocExists: false,
-  tokenDocData: null
+  tokenDocData: null,
+  customDialogMode: "create",
+  editingCustomItemId: "",
+  deletedItemIds: new Set()
 };
 
 let listTouchStartY = 0;
@@ -209,6 +213,11 @@ function initUI() {
 
   document.getElementById("toolMenuBtn")?.addEventListener("click", () => openModal("toolMenuDialog"));
   document.getElementById("closeToolMenuBtn")?.addEventListener("click", () => closeModal("toolMenuDialog"));
+  document.getElementById("viewInputtedListBtn")?.addEventListener("click", () => {
+    closeModal("toolMenuDialog");
+    openInputtedItemsDialog();
+  });
+  document.getElementById("closeInputtedItemsBtn")?.addEventListener("click", () => closeModal("inputtedItemsDialog"));
 
   document.getElementById("toolMenuBtnAddCustom")?.addEventListener("click", () => {
     if (!canEdit()) {
@@ -216,13 +225,14 @@ function initUI() {
       return;
     }
     closeModal("toolMenuDialog");
-    openModal("customItemDialog");
+    openCustomItemDialogForCreate();
   });
 
   document.getElementById("customQtyMinus")?.addEventListener("click", () => changeCustomQty(-1));
   document.getElementById("customQtyPlus")?.addEventListener("click", () => changeCustomQty(1));
   document.getElementById("customItemForm")?.addEventListener("submit", handleCustomItemSubmit);
   document.getElementById("cancelCustomBtn")?.addEventListener("click", () => closeModal("customItemDialog"));
+  document.getElementById("deleteCustomBtn")?.addEventListener("click", handleDeleteCustomItem);
 
   document.getElementById("exportJsonBtn")?.addEventListener("click", () => {
     closeModal("toolMenuDialog");
@@ -237,6 +247,7 @@ function initUI() {
   document.getElementById("importFileInput")?.addEventListener("change", importJsonBackup);
 
   attachDialogBackdropClose("toolMenuDialog");
+  attachDialogBackdropClose("inputtedItemsDialog");
   attachDialogBackdropClose("customItemDialog");
 }
 
@@ -448,6 +459,7 @@ function buildStateFromSources(masterData, inventoryMap) {
   state.autoSaveSuspended = false;
   state.hasShownRetryNotice = false;
   state.visibleCount = INITIAL_VISIBLE_COUNT;
+  state.deletedItemIds = new Set();
 
   masterData.forEach((m) => {
     const id = String(m.id || "").trim();
@@ -511,8 +523,9 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   const dirtyItems = state.items.filter(
     (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id]
   );
+  const deletedItemIds = Array.from(state.deletedItemIds);
 
-  if (dirtyItems.length === 0) {
+  if (dirtyItems.length === 0 && deletedItemIds.length === 0) {
     if (!silent) {
       clearErrorMessage();
       setInfoMessage(INFO_MESSAGES.NO_CHANGES);
@@ -530,6 +543,12 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   setInfoMessage(silent ? INFO_MESSAGES.AUTO_SAVING : INFO_MESSAGES.MANUAL_SAVING);
 
   try {
+    for (const itemId of deletedItemIds) {
+      const ref = doc(db, "inventory", state.token, "items", itemId);
+      await deleteDoc(ref);
+      state.deletedItemIds.delete(itemId);
+    }
+
     for (const item of dirtyItems) {
       const ref = doc(db, "inventory", state.token, "items", item.id);
 
@@ -724,7 +743,6 @@ function getEmptyMessage() {
 function renderItemHTML(item) {
   const topMeta = [item.publisher, item.edition].filter(Boolean).join(" / ");
   const hasQty = item.qty > 0;
-
   return `
     <article class="item ${hasQty ? "has-qty" : ""} ${item.isCustom ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="item-main">
@@ -844,7 +862,7 @@ function recalcTotalQty() {
   state.totalQty = state.items.reduce((sum, item) => sum + item.qty, 0);
   state.dirtyCount = state.items.filter(
     (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id]
-  ).length;
+  ).length + state.deletedItemIds.size;
 }
 
 function updateStatsUI() {
@@ -884,6 +902,9 @@ function handleListClick(e) {
   const id = itemEl.dataset.id;
   if (!id) return;
 
+  const item = state.itemsById.get(id);
+  if (!item) return;
+
   if (target.closest(".qty-btn")) {
     if (target.classList.contains("plus")) {
       changeQty(id, 1);
@@ -894,6 +915,11 @@ function handleListClick(e) {
   }
 
   if (target.closest(".qty-input")) {
+    return;
+  }
+
+  if (item.isCustom) {
+    openCustomItemDialogForEdit(item);
     return;
   }
 
@@ -931,6 +957,15 @@ function handleListTouchEnd(e) {
 
   const id = itemEl.dataset.id;
   if (!id) return;
+
+  const item = state.itemsById.get(id);
+  if (!item) return;
+
+  if (item.isCustom) {
+    openCustomItemDialogForEdit(item);
+    ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
+    return;
+  }
 
   changeQty(id, 1);
   ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
@@ -1140,6 +1175,147 @@ function changeCustomQty(diff) {
   }
 }
 
+function setCustomDialogMode(mode, item = null) {
+  state.customDialogMode = mode;
+  state.editingCustomItemId = mode === "edit" && item ? item.id : "";
+
+  const titleEl = document.querySelector("#customItemDialog .modal-title");
+  const saveBtn = document.getElementById("saveCustomBtn");
+  const deleteBtn = document.getElementById("deleteCustomBtn");
+
+  if (titleEl) {
+    if (mode === "edit") {
+      titleEl.textContent = "\u672A\u767B\u9332\u6559\u6750\u3092\u7DE8\u96C6";
+    } else {
+      titleEl.textContent = "\u672A\u767B\u9332\u6559\u6750\u3092\u8FFD\u52A0";
+    }
+  }
+
+  if (saveBtn) {
+    saveBtn.textContent = mode === "edit" ? "\u4FDD\u5B58\u3059\u308B" : "\u8FFD\u52A0\u3059\u308B";
+  }
+
+  if (deleteBtn) {
+    deleteBtn.hidden = mode !== "edit";
+  }
+}
+
+function fillCustomItemForm(item = null) {
+  const nameInput = document.getElementById("customName");
+  const publisherInput = document.getElementById("customPublisher");
+  const editionInput = document.getElementById("customEdition");
+  const qtyValue = document.getElementById("customQtyValue");
+
+  if (nameInput) nameInput.value = item?.name || "";
+  if (publisherInput) publisherInput.value = item?.publisher || "";
+  if (editionInput) editionInput.value = item?.edition || "";
+  if (qtyValue) qtyValue.textContent = String(item?.qty ?? 0);
+}
+
+function openCustomItemDialogForCreate() {
+  setCustomDialogMode("create");
+  fillCustomItemForm(null);
+  openModal("customItemDialog");
+}
+
+function openCustomItemDialogForEdit(item) {
+  if (!item?.isCustom || !canEdit()) return;
+  setCustomDialogMode("edit", item);
+  fillCustomItemForm(item);
+  openModal("customItemDialog");
+}
+
+function removeItemFromState(itemId) {
+  state.items = state.items.filter((item) => item.id !== itemId);
+  state.itemsById.delete(itemId);
+  delete state.originalSnapshotMap[itemId];
+}
+
+async function deleteCustomItem(item) {
+  if (!item?.isCustom || !canEdit()) return;
+  const confirmed = confirm("\u3053\u306E\u672A\u767B\u9332\u6559\u6750\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uff1F");
+  if (!confirmed) return;
+
+  const originalSnapshot = state.originalSnapshotMap[item.id];
+  if (originalSnapshot && originalSnapshot !== "__NEW_ITEM__") {
+    state.deletedItemIds.add(item.id);
+  }
+
+  removeItemFromState(item.id);
+  generateCategoryChips();
+  syncInputOnlyToggleUI();
+  applyFilterAndRender();
+  updateStatsUI();
+  scheduleAutoSave();
+}
+
+function handleDeleteCustomItem() {
+  const item = state.itemsById.get(state.editingCustomItemId);
+  if (!item) return;
+  closeModal("customItemDialog");
+  void deleteCustomItem(item);
+}
+
+function openInputtedItemsDialog() {
+  renderInputtedItemsDialog();
+  openModal("inputtedItemsDialog");
+}
+
+function renderInputtedItemsDialog() {
+  const summaryEl = document.getElementById("inputtedItemsSummary");
+  const listEl = document.getElementById("inputtedItemsList");
+  if (!summaryEl || !listEl) return;
+
+  const inputtedItems = state.items.filter((item) => item.qty > 0);
+  const standardItems = inputtedItems.filter((item) => !item.isCustom);
+  const customItems = inputtedItems.filter((item) => item.isCustom);
+
+  summaryEl.textContent = `\u5168${inputtedItems.length}\u4EF6 / \u5408\u8A08 ${inputtedItems.reduce((sum, item) => sum + item.qty, 0)}\u518A`;
+
+  if (inputtedItems.length === 0) {
+    listEl.innerHTML = `<div class="empty">\u5165\u529B\u6E08\u307F\u306E\u6559\u6750\u306F\u307E\u3060\u3042\u308A\u307E\u305B\u3093\u3002</div>`;
+    return;
+  }
+
+  const renderRows = (items) => items
+    .map((item) => {
+      const meta = [item.category, item.subject, item.publisher, item.edition]
+        .filter(Boolean)
+        .join(" / ");
+      return `
+        <div class="review-row">
+          <div class="review-row-main">
+            <div class="review-row-name">${escapeHtml(item.name)}</div>
+            <div class="review-row-meta">${escapeHtml(meta)}</div>
+          </div>
+          <div class="review-row-qty num">${item.qty}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  let html = "";
+  if (standardItems.length > 0) {
+    html += `
+      <section class="review-group">
+        <div class="review-group-title">\u6559\u6750</div>
+        ${renderRows(standardItems)}
+      </section>
+    `;
+  }
+
+  if (customItems.length > 0) {
+    html += `
+      <section class="review-group">
+        <div class="review-group-title">\u672A\u767B\u9332\u6559\u6750</div>
+        ${renderRows(customItems)}
+      </section>
+    `;
+  }
+
+  listEl.innerHTML = html;
+}
+
 function handleCustomItemSubmit(e) {
   e.preventDefault();
   if (!canEdit()) return;
@@ -1159,20 +1335,39 @@ function handleCustomItemSubmit(e) {
     return;
   }
 
-  const id = "custom_" + Date.now();
+  if (state.customDialogMode === "edit" && state.editingCustomItemId) {
+    const target = state.itemsById.get(state.editingCustomItemId);
+    if (!target) return;
+    target.name = name;
+    target.publisher = publisher;
+    target.edition = edition;
+    target.qty = qty;
+    target.searchTag = [
+      target.name,
+      target.category,
+      target.subject,
+      target.publisher,
+      target.edition
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+  } else {
+    const id = "custom_" + Date.now();
 
-  const newItem = normalizeItem({
-    id,
-    name,
-    category,
-    subject: "",
-    publisher,
-    edition,
-    qty,
-    isCustom: true
-  });
+    const newItem = normalizeItem({
+      id,
+      name,
+      category,
+      subject: "",
+      publisher,
+      edition,
+      qty,
+      isCustom: true
+    });
 
-  pushNewDirtyItemToState(newItem);
+    pushNewDirtyItemToState(newItem);
+  }
 
   e.target.reset();
 
@@ -1183,6 +1378,7 @@ function handleCustomItemSubmit(e) {
   if (qtyValue) qtyValue.textContent = "0";
 
   closeModal("customItemDialog");
+  setCustomDialogMode("create");
 
   generateCategoryChips();
   syncInputOnlyToggleUI();

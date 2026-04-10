@@ -344,8 +344,8 @@ textarea {
 }
 
 .filter-section-category {
-  background: linear-gradient(180deg, #fffaf3 0%, #fff4e6 100%);
-  border-color: #f3dcc0;
+  background: linear-gradient(180deg, #fffcf8 0%, #fff7ef 100%);
+  border-color: #f4e4d1;
 }
 
 .filter-chip-row {
@@ -396,25 +396,25 @@ textarea {
 }
 
 .f-chip.chip-all {
-  background: #fff7ee;
-  border-color: #efd9bc;
-  color: #b8742a;
+  background: #fffaf4;
+  border-color: #f1dfc9;
+  color: #a8641f;
 }
 
 .f-chip.chip-all:hover {
-  background: #fff0df;
-  border-color: #e7c79a;
+  background: #fff4e8;
+  border-color: #ead0ae;
 }
 
 .filter-scroll .f-chip:not(.chip-custom) {
-  background: #fff7ee;
-  border-color: #efd9bc;
-  color: #b8742a;
+  background: #fffaf4;
+  border-color: #f1dfc9;
+  color: #a8641f;
 }
 
 .filter-scroll .f-chip:not(.chip-custom):hover {
-  background: #fff0df;
-  border-color: #e7c79a;
+  background: #fff4e8;
+  border-color: #ead0ae;
 }
 
 .filter-scroll .f-chip:not(.chip-custom).active {
@@ -575,6 +575,58 @@ textarea {
 .badge-publisher {
   background: #e5e5e5;
   color: #222;
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+  max-height: min(60vh, 560px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.review-group {
+  display: grid;
+  gap: 8px;
+}
+
+.review-group-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--sub);
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.review-row-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.review-row-name {
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.review-row-meta {
+  font-size: 11px;
+  color: var(--sub);
+}
+
+.review-row-qty {
+  font-size: 20px;
+  font-weight: 800;
 }
 
 .qty-box {
@@ -829,6 +881,16 @@ dialog::backdrop {
   color: var(--sub);
 }
 
+.btn-ghost.danger {
+  border-color: #fecaca;
+  color: var(--danger);
+  background: #fff5f5;
+}
+
+.btn-ghost.danger:hover {
+  background: #fee2e2;
+}
+
 .modal-head,
 .modal-body,
 .modal-foot {
@@ -959,6 +1021,11 @@ dialog::backdrop {
 
   .item {
     grid-template-columns: 1fr;
+  }
+
+  .review-row {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 
   .qty-box {

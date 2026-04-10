@@ -1,22 +1,6 @@
 /**
  * ====================================================================
  * 教材在庫管理システム - data.js マスタ利用版 (app.js)
- *
- * 【システム概要】
- * 1. 起動時: URLパラメータのtokenを元に、Firestoreから校舎情報と在庫データを取得。
- * 2. マスタ管理: data.jsのMASTER_DATAと、Firestore側の実在庫をIDで紐付け。
- * 3. 未登録教材: マスタにない教材は "custom_" IDで個別管理。
- * 4. 保存: 編集後5秒の自動保存、または手動保存。変更があったアイテムのみ送信。
- * 5. オフライン対策: JSONファイルへの書き出し・読み込み機能を搭載。
- *
- * 【今回の調整】
- * - フィルタチップ上段を「未登録 / 入力済み / すべて」に変更
- * - 未登録教材でも qty=0 のときは通常カードと同じ見た目に統一
- * - 数量の増減に関する過度な演出をなくし、落ち着いたUIに調整
- * - カード全体タップで +1
- *   ※ 数量エリア(.qty-box)内は除外
- *   ※ スクロール時の誤反応を避けるため touchmove 量で判定
- * - 数量の直接入力に対応
  * ====================================================================
  */
 
@@ -30,11 +14,6 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
-/**
- * =========================
- * 設定・定数
- * =========================
- */
 const ROOM_LABEL_MAP = {
   takadanobaba: "高田馬場",
   sugamo: "巣鴨",
@@ -51,7 +30,6 @@ const INITIAL_VISIBLE_COUNT = 30;
 const LOAD_MORE_COUNT = 30;
 const AUTO_SAVE_DELAY_MS = 5000;
 
-/* カードタップ判定用 */
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
 
@@ -80,9 +58,6 @@ const ERROR_MESSAGES = {
   ADD_CUSTOM_NOT_ALLOWED: "このURLでは未登録教材を追加できません。"
 };
 
-/**
- * アプリケーション状態 (State)
- */
 const state = {
   token: "",
   roomKey: "",
@@ -90,7 +65,8 @@ const state = {
   items: [],
   itemsById: new Map(),
   filteredItems: [],
-  activeFilter: "all",
+  activeCategoryFilter: "all",
+  showOnlyInputted: false,
   query: "",
   isSyncing: false,
   totalQty: 0,
@@ -107,16 +83,10 @@ const state = {
   tokenDocData: null
 };
 
-/* タッチ判定用の一時変数 */
 let listTouchStartY = 0;
 let listTouchMoved = false;
 let ignoreClickUntil = 0;
 
-/**
- * =========================
- * 起動処理 (EntryPoint)
- * =========================
- */
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(location.search);
   state.token = (params.get("token") || "").trim();
@@ -133,20 +103,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     const fallbackMasterData = getFallbackMasterData();
     buildStateFromSources(fallbackMasterData, new Map());
     generateCategoryChips();
+    syncInputOnlyToggleUI();
     applyFilterAndRender();
     updateStatsUI();
 
-    setInfoMessage(
-      state.isLocalPreview
-        ? INFO_MESSAGES.LOCAL_PREVIEW_NO_TOKEN
-        : ERROR_MESSAGES.TOKEN_MISSING
-    );
-
-    if (!state.isLocalPreview) {
+    if (state.isLocalPreview) {
+      setInfoMessage("ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。", false);
+      clearErrorMessage();
+      setReadOnlyMode(false);
+    } else {
+      setInfoMessage(ERROR_MESSAGES.TOKEN_MISSING);
       setErrorMessage(ERROR_MESSAGES.INVALID_URL);
+      setReadOnlyMode(true);
     }
-
-    setReadOnlyMode(true);
     return;
   }
 
@@ -157,28 +126,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     const fallbackMasterData = getFallbackMasterData();
     buildStateFromSources(fallbackMasterData, new Map());
     generateCategoryChips();
+    syncInputOnlyToggleUI();
     applyFilterAndRender();
     updateStatsUI();
 
-    setInfoMessage(INFO_MESSAGES.LOCAL_PREVIEW);
+    setInfoMessage("ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。", false);
     clearErrorMessage();
-    setReadOnlyMode(true);
+    setReadOnlyMode(false);
     return;
   }
 
   await initAccessAndLoad();
 });
 
-/**
- * =========================
- * UI初期化
- * =========================
- */
 function initUI() {
   const roomLabelEl = document.getElementById("roomLabel");
   const sendBtn = document.getElementById("sendBtn");
   const searchInput = document.getElementById("searchInput");
   const filterArea = document.getElementById("filterArea");
+  const inputOnlyToggle = document.getElementById("inputOnlyToggle");
   const list = document.getElementById("list");
 
   if (roomLabelEl) {
@@ -200,25 +166,35 @@ function initUI() {
   }, SEARCH_DEBOUNCE_MS));
 
   filterArea?.addEventListener("click", (e) => {
-    const chip = e.target.closest(".f-chip");
-    if (!chip || chip.dataset.filter === state.activeFilter) return;
+    const chip = e.target.closest(".f-chip[data-filter]");
+    if (!chip) return;
 
-    document.querySelectorAll(".f-chip").forEach((el) => el.classList.remove("active"));
-    chip.classList.add("active");
-    state.activeFilter = chip.dataset.filter;
+    const nextFilter = chip.dataset.filter;
+    if (!nextFilter) return;
+
+    if (nextFilter === state.activeCategoryFilter) return;
+    state.activeCategoryFilter = nextFilter;
+
     state.visibleCount = INITIAL_VISIBLE_COUNT;
+
+    generateCategoryChips();
     applyFilterAndRender();
   });
 
-  /* リスト内クリック（＋−、さらに表示、カードクリック） */
-  list?.addEventListener("click", handleListClick);
+  inputOnlyToggle?.addEventListener("click", () => {
+    state.showOnlyInputted = !state.showOnlyInputted;
+    state.visibleCount = INITIAL_VISIBLE_COUNT;
+    syncInputOnlyToggleUI();
+    applyFilterAndRender();
+  });
 
-  /* 数量の直接入力 */
+  syncInputOnlyToggleUI();
+
+  list?.addEventListener("click", handleListClick);
   list?.addEventListener("change", handleQtyInputCommit);
   list?.addEventListener("focusin", handleQtyInputFocusIn);
   list?.addEventListener("keydown", handleQtyInputKeydown);
 
-  /* カードタップ + スクロール誤反応防止 */
   list?.addEventListener("touchstart", handleListTouchStart, { passive: true });
   list?.addEventListener("touchmove", handleListTouchMove, { passive: true });
   list?.addEventListener("touchend", handleListTouchEnd);
@@ -264,11 +240,20 @@ function initUI() {
   attachDialogBackdropClose("customItemDialog");
 }
 
-/**
- * =========================
- * メッセージ表示関連
- * =========================
- */
+function syncInputOnlyToggleUI() {
+  const toggle = document.getElementById("inputOnlyToggle");
+  if (!toggle) return;
+
+  const isActive = state.showOnlyInputted;
+  toggle.classList.toggle("active", isActive);
+  toggle.classList.remove("is-disabled");
+  toggle.setAttribute("aria-pressed", String(isActive));
+  toggle.setAttribute("aria-label", isActive ? "\u2611\u5165\u529B\u6E08\u307F" : "\u2610\u5165\u529B\u6E08\u307F");
+  toggle.title = "\u5165\u529B\u6E08\u307F\u306E\u307F\u3092\u5207\u308A\u66FF\u3048";
+  toggle.textContent = isActive ? "\u2611\u5165\u529B\u6E08\u307F" : "\u2610\u5165\u529B\u6E08\u307F";
+  toggle.disabled = false;
+}
+
 function formatNow() {
   return new Date().toLocaleString("ja-JP", {
     hour: "2-digit",
@@ -312,11 +297,6 @@ function clearErrorMessage() {
   setErrorMessage("");
 }
 
-/**
- * =========================
- * tokenアクセス確認
- * =========================
- */
 async function initAccessAndLoad() {
   try {
     clearErrorMessage();
@@ -386,14 +366,10 @@ function updateRoomLabel() {
 }
 
 function canEdit() {
-  return !!(state.token && state.accessGranted && !state.isLocalPreview);
+  if (state.isLocalPreview) return true;
+  return !!(state.token && state.accessGranted);
 }
 
-/**
- * =========================
- * データ同期 (Firestore)
- * =========================
- */
 async function loadAppData() {
   clearErrorMessage();
   setInfoMessage(INFO_MESSAGES.LOADING);
@@ -408,6 +384,7 @@ async function loadAppData() {
 
     buildStateFromSources(masterData, inventoryMap);
     generateCategoryChips();
+    syncInputOnlyToggleUI();
     updateStatsUI();
     applyFilterAndRender();
 
@@ -521,12 +498,14 @@ function pushNewDirtyItemToState(item) {
   state.originalSnapshotMap[item.id] = "__NEW_ITEM__";
 }
 
-/**
- * =========================
- * 保存処理 (Firestore)
- * =========================
- */
 async function sendData({ silent = false, isManualRetry = false } = {}) {
+  if (state.isLocalPreview) {
+    clearErrorMessage();
+    setInfoMessage(silent ? "ローカル確認モードです。保存送信は行いません。" : "ローカル確認モードです。Firestore保存は行いません。", false);
+    clearAutoSaveTimer();
+    return true;
+  }
+
   if (!state.token || state.isSyncing || !canEdit()) return false;
 
   const dirtyItems = state.items.filter(
@@ -632,53 +611,73 @@ function clearAutoSaveTimer() {
   }
 }
 
-/**
- * =========================
- * 描画ロジック
- * =========================
- */
 function generateCategoryChips() {
   const container = document.getElementById("filterArea");
   if (!container) return;
 
   const categories = Array.from(
-    new Set(state.items.map((item) => item.category).filter(Boolean))
+    new Set(
+      state.items
+        .filter((item) => !item.isCustom)
+        .map((item) => item.category)
+        .filter(Boolean)
+    )
   );
+  const isCategoryActive = (key) => (state.activeCategoryFilter === key ? " active" : "");
 
-  const isActive = (key) => (state.activeFilter === key ? " active" : "");
-
-  let mainHtml = "";
-  mainHtml += `<button type="button" class="f-chip chip-custom${isActive("custom")}" data-filter="custom">未登録</button>`;
-  mainHtml += `<button type="button" class="f-chip chip-input${isActive("input")}" data-filter="input">入力済み</button>`;
-  mainHtml += `<button type="button" class="f-chip chip-all${isActive("all")}" data-filter="all">すべて</button>`;
-
-  let subHtml = "";
-  categories
+  const categoryButtons = categories
     .filter((c) => c && c !== "未登録教材")
-    .forEach((c) => {
-      subHtml += `<button type="button" class="f-chip${isActive(c)}" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
-    });
-
-  container.innerHTML = `
-    <div class="filter-main">${mainHtml}</div>
-    <div class="filter-sub">${subHtml}</div>
+    .map((c) => {
+      return `<button type="button" class="f-chip${isCategoryActive(c)}" data-filter-type="category" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
+    })
+    .join("");
+  let html = "";
+  html += `
+    <div class="filter-section filter-section-primary">
+      <div class="filter-chip-row">
+        <button type="button" class="f-chip chip-custom${isCategoryActive("custom")}" data-filter="custom">&#x672A;&#x767B;&#x9332;</button>
+      </div>
+    </div>
   `;
+
+  html += `
+    <div class="filter-section filter-section-category">
+      <div class="filter-chip-row">
+        <button type="button" class="f-chip chip-all${isCategoryActive("all")}" data-filter="all">&#x3059;&#x3079;&#x3066;</button>
+        ${categoryButtons}
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
 }
 
 function applyFilterAndRender() {
   const q = state.query;
-  const filter = state.activeFilter;
+  const categoryFilter = state.activeCategoryFilter;
+  const showOnlyInputted = state.showOnlyInputted;
 
   state.filteredItems = state.items.filter((item) => {
     const matchesQuery = !q || item.searchTag.includes(q);
     if (!matchesQuery) return false;
 
-    if (filter === "custom") return item.isCustom;
+    if (categoryFilter === "custom") {
+      return item.isCustom && (!showOnlyInputted || item.qty > 0);
+    }
+
     if (item.isCustom) return false;
 
-    if (filter === "input") return item.qty > 0;
-    if (filter === "all") return true;
-    return item.category === filter;
+    const matchesCategory = categoryFilter === "all"
+      ? true
+      : item.category === categoryFilter;
+
+    if (!matchesCategory) return false;
+
+    if (showOnlyInputted) {
+      return item.qty > 0;
+    }
+
+    return true;
   });
 
   renderFilteredItems();
@@ -689,7 +688,10 @@ function renderFilteredItems() {
   if (!container) return;
 
   if (state.filteredItems.length === 0) {
-    container.innerHTML = `<div class="empty">該当する教材がありません。</div>`;
+    const emptyText = state.activeCategoryFilter === "custom" && state.showOnlyInputted
+      ? "入力済みの未登録教材はありません。"
+      : getEmptyMessage();
+    container.innerHTML = `<div class="empty">${escapeHtml(emptyText)}</div>`;
     return;
   }
 
@@ -705,6 +707,18 @@ function renderFilteredItems() {
   }
 
   container.innerHTML = html;
+}
+
+function getEmptyMessage() {
+  if (state.activeCategoryFilter === "custom") {
+    return "未登録教材はありません。";
+  }
+
+  if (state.showOnlyInputted) {
+    return "入力済みの教材はありません。";
+  }
+
+  return "該当する教材がありません。";
 }
 
 function renderItemHTML(item) {
@@ -851,11 +865,6 @@ function updateStatsUI() {
   }
 }
 
-/**
- * =========================
- * リスト操作
- * =========================
- */
 function handleListClick(e) {
   const target = e.target;
 
@@ -865,7 +874,6 @@ function handleListClick(e) {
     return;
   }
 
-  /* touchend 後に発生する疑似 click を無視 */
   if (Date.now() < ignoreClickUntil) {
     return;
   }
@@ -889,7 +897,6 @@ function handleListClick(e) {
     return;
   }
 
-  /* PC等ではクリックでカード加算 */
   changeQty(id, 1);
 }
 
@@ -913,10 +920,7 @@ function handleListTouchEnd(e) {
 
   const target = e.target;
 
-  // .item-main 内の要素であるかチェック
   if (!target.closest(".item-main")) return;
-
-  // 念のため他の要素でないこともチェック
   if (target.id === "loadMoreBtn") return;
   if (target.closest(".qty-box")) return;
   if (target.closest(".qty-input")) return;
@@ -1009,11 +1013,6 @@ function syncItemRowUI(itemEl, item) {
   itemEl.classList.toggle("custom-item", !!item.isCustom);
 }
 
-/**
- * =========================
- * ダイアログ制御
- * =========================
- */
 function openModal(id) {
   const dialog = document.getElementById(id);
   if (dialog) dialog.showModal();
@@ -1032,11 +1031,6 @@ function attachDialogBackdropClose(id) {
   });
 }
 
-/**
- * =========================
- * JSONバックアップ
- * =========================
- */
 function exportJsonBackup() {
   const data = {
     token: state.token,
@@ -1112,6 +1106,7 @@ async function importJsonBackup(e) {
       });
 
       generateCategoryChips();
+      syncInputOnlyToggleUI();
       applyFilterAndRender();
       updateStatsUI();
       scheduleAutoSave();
@@ -1125,11 +1120,6 @@ async function importJsonBackup(e) {
   e.target.value = "";
 }
 
-/**
- * =========================
- * 未登録教材
- * =========================
- */
 function changeCustomQty(diff) {
   const qtyEl =
     document.getElementById("customQtyInput") ||
@@ -1195,6 +1185,7 @@ function handleCustomItemSubmit(e) {
   closeModal("customItemDialog");
 
   generateCategoryChips();
+  syncInputOnlyToggleUI();
   applyFilterAndRender();
   updateStatsUI();
   scheduleAutoSave();

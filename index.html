@@ -35,7 +35,25 @@
             placeholder="教材名・出版社で検索..."
             autocomplete="off"
           />
-          <div id="filterArea" class="filter-scroll"></div>
+          <div class="filter-layout">
+            <div class="filter-pinned">
+              <button
+                id="inputOnlyToggle"
+                class="f-chip f-chip-toggle"
+                type="button"
+                aria-pressed="false"
+              >
+                &#x2610;&#x5165;&#x529B;&#x6E08;&#x307F;
+              </button>
+            </div>
+            <div class="filter-divider" aria-hidden="true"></div>
+            <div
+              id="filterArea"
+              class="filter-scroll"
+              role="group"
+              aria-label="&#x6559;&#x6750;&#x30D5;&#x30A3;&#x30EB;&#x30BF;"
+            ></div>
+          </div>
         </div>
 
         <div id="metaPanel" class="meta-panel always-open">

@@ -19,18 +19,13 @@
   --success-soft: #ecfdf3;
   --success-deep: #166534;
 
-  --neutral-chip: #f8fafc;
-  --neutral-chip-border: #d0d5dd;
-
   --danger: #dc2626;
   --danger-soft: #fef2f2;
 
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
 
-  --radius-lg: 18px;
-  --radius-md: 14px;
-  --radius-sm: 999px;
+  --accent-dark: #0f0f40;
   --maxw: 1180px;
 }
 
@@ -285,36 +280,88 @@ textarea {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
 }
 
+.filter-layout {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-pinned {
+  display: flex;
+  align-items: center;
+}
+
+.filter-divider {
+  width: 1px;
+  height: 30px;
+  background: #d0d5dd;
+  opacity: 0.9;
+}
+
+.filter-group-wrap {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.filter-group-label {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--sub-soft);
+  font-weight: 700;
+  padding-left: 4px;
+  letter-spacing: 0.04em;
+}
+
 .filter-scroll {
   display: flex;
   gap: 8px;
-  padding: 6px 0 2px;
+  padding: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  align-items: center;
 }
 
 .filter-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.filter-main,
-.filter-sub {
-  display: contents;
+.filter-section {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: fit-content;
+  padding: 5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
 }
 
-.filter-main::-webkit-scrollbar,
-.filter-sub::-webkit-scrollbar {
-  display: none;
+.filter-section-primary {
+  background: linear-gradient(180deg, #f4fcf7 0%, #e6f7ed 100%);
+  border-color: #b9e5c8;
+}
+
+.filter-section-category {
+  background: linear-gradient(180deg, #fffaf3 0%, #fff4e6 100%);
+  border-color: #f3dcc0;
+}
+
+.filter-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .f-chip {
   flex: 0 0 auto;
-  min-height: 40px;
-  border: 1px solid var(--neutral-chip-border);
+  min-height: 34px;
+  border: 1px solid #d8dee8;
   background: #fff;
-  color: #344054;
+  color: #475467;
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 7px 12px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -326,15 +373,7 @@ textarea {
   border-color: #cbd5e1;
 }
 
-.f-chip:not(.chip-all):not(.chip-custom):not(.chip-input):hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.f-chip.active:not(.chip-all):not(.chip-custom):not(.chip-input) {
-  background: #0f0f40;
-  border-color: #d1d5db;
-  color: #fff;
+.f-chip.active {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
@@ -356,40 +395,60 @@ textarea {
   box-shadow: 0 6px 14px rgba(21, 128, 61, 0.16);
 }
 
-.f-chip.chip-input {
-  border-color: #93c5fd;
-  background: var(--primary-soft);
-  color: var(--primary-deep);
+.f-chip.chip-all {
+  background: #fff7ee;
+  border-color: #efd9bc;
+  color: #b8742a;
 }
 
-.f-chip.chip-input:hover {
-  background: #dbeafe;
-  border-color: #60a5fa;
+.f-chip.chip-all:hover {
+  background: #fff0df;
+  border-color: #e7c79a;
 }
 
-.f-chip.chip-input.active {
+.filter-scroll .f-chip:not(.chip-custom) {
+  background: #fff7ee;
+  border-color: #efd9bc;
+  color: #b8742a;
+}
+
+.filter-scroll .f-chip:not(.chip-custom):hover {
+  background: #fff0df;
+  border-color: #e7c79a;
+}
+
+.filter-scroll .f-chip:not(.chip-custom).active {
+  background: #dc7c17;
+  border-color: #dc7c17;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(220, 124, 23, 0.18);
+}
+
+.f-chip-toggle {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-color: #bcd4f3;
+  background: #edf5ff;
+  color: #285ea8;
+}
+
+.f-chip-toggle:hover {
+  background: #e2efff;
+  border-color: #9fc0ef;
+}
+
+.f-chip-toggle.is-disabled,
+.f-chip-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.f-chip-toggle.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
   box-shadow: 0 6px 14px rgba(37, 99, 235, 0.16);
-}
-
-.f-chip.chip-all {
-  background: #fff;
-  border-color: var(--neutral-chip-border);
-  color: #344054;
-}
-
-.f-chip.chip-all:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.f-chip.chip-all.active {
-  background: #0f0f40;
-  border-color: #d1d5db;
-  color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
 }
 
 .meta-panel.always-open {
@@ -437,7 +496,6 @@ textarea {
   background: var(--primary);
 }
 
-/* 未登録教材でも qty=0 のときは通常カードと同じ白背景 */
 .item.custom-item {
   border-color: var(--line);
   background: #fff;
@@ -500,13 +558,13 @@ textarea {
 }
 
 .badge-cat {
-  background: #e0ecff;
-  color: #1d4ed8;
+  background: #fff3df;
+  color: #b76612;
 }
 
 .badge-sub {
-  background: #e8f7ec;
-  color: #137333;
+  background: #fff7cf;
+  color: #9c7605;
 }
 
 .badge-custom {
@@ -877,14 +935,26 @@ dialog::backdrop {
     flex: 1 1 auto;
   }
 
-  .filter-main,
-  .filter-sub {
+  .filter-layout {
+    grid-template-columns: auto auto minmax(0, 1fr);
     gap: 8px;
+    align-items: center;
   }
 
-  .f-chip {
-    min-height: 38px;
-    padding: 9px 14px;
+  .filter-pinned {
+    align-self: center;
+  }
+
+  .filter-divider {
+    height: 26px;
+  }
+
+  .filter-section {
+    padding: 5px;
+  }
+
+  .f-chip-toggle {
+    padding: 7px 10px;
   }
 
   .item {

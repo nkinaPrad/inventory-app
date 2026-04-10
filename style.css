@@ -389,8 +389,8 @@ textarea {
 }
 
 .f-chip.chip-custom.active {
-  background: #46b86f;
-  border-color: #46b86f;
+  background: #6fc06f;
+  border-color: #6fc06f;
   color: #fff;
   box-shadow: 0 6px 14px rgba(70, 184, 111, 0.14);
 }
@@ -1187,3 +1187,4 @@ input::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+

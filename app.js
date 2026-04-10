@@ -259,9 +259,9 @@ function syncInputOnlyToggleUI() {
   toggle.classList.toggle("active", isActive);
   toggle.classList.remove("is-disabled");
   toggle.setAttribute("aria-pressed", String(isActive));
-  toggle.setAttribute("aria-label", isActive ? "\u2611\u5165\u529B\u6E08\u307F" : "\u2610\u5165\u529B\u6E08\u307F");
-  toggle.title = "\u5165\u529B\u6E08\u307F\u306E\u307F\u3092\u5207\u308A\u66FF\u3048";
-  toggle.textContent = isActive ? "\u2611\u5165\u529B\u6E08\u307F" : "\u2610\u5165\u529B\u6E08\u307F";
+  toggle.setAttribute("aria-label", isActive ? "☑入力済み" : "☐入力済み");
+  toggle.title = "入力済みのみを切り替え";
+  toggle.textContent = isActive ? "☑入力済み" : "☐入力済み";
   toggle.disabled = false;
 }
 
@@ -642,19 +642,23 @@ function generateCategoryChips() {
         .filter(Boolean)
     )
   );
-  const isCategoryActive = (key) => (state.activeCategoryFilter === key ? " active" : "");
+
+  const isCategoryActive = (key) =>
+    state.activeCategoryFilter === key ? " active" : "";
 
   const categoryButtons = categories
     .filter((c) => c && c !== "未登録教材")
     .map((c) => {
-      return `<button type="button" class="f-chip${isCategoryActive(c)}" data-filter-type="category" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
+      return `<button type="button" class="f-chip${isCategoryActive(c)}" data-filter="${escapeHtml(c)}">${escapeHtml(c)}</button>`;
     })
     .join("");
+
   let html = "";
+
   html += `
     <div class="filter-section filter-section-primary">
       <div class="filter-chip-row">
-        <button type="button" class="f-chip chip-custom${isCategoryActive("custom")}" data-filter="custom">&#x672A;&#x767B;&#x9332;</button>
+        <button type="button" class="f-chip chip-custom${isCategoryActive("custom")}" data-filter="custom">未登録</button>
       </div>
     </div>
   `;
@@ -662,7 +666,7 @@ function generateCategoryChips() {
   html += `
     <div class="filter-section filter-section-category">
       <div class="filter-chip-row">
-        <button type="button" class="f-chip chip-all${isCategoryActive("all")}" data-filter="all">&#x3059;&#x3079;&#x3066;</button>
+        <button type="button" class="f-chip chip-all${isCategoryActive("all")}" data-filter="all">すべて</button>
         ${categoryButtons}
       </div>
     </div>
@@ -1071,9 +1075,6 @@ function closeModal(id) {
 function attachDialogBackdropClose(id) {
   const dialog = document.getElementById(id);
   if (!dialog) return;
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
 }
 
 function exportJsonBackup() {
@@ -1195,14 +1196,14 @@ function setCustomDialogMode(mode, item = null) {
 
   if (titleEl) {
     if (mode === "edit") {
-      titleEl.textContent = "\u672A\u767B\u9332\u6559\u6750\u3092\u7DE8\u96C6";
+      titleEl.textContent = "未登録教材を編集";
     } else {
-      titleEl.textContent = "\u672A\u767B\u9332\u6559\u6750\u3092\u8FFD\u52A0";
+      titleEl.textContent = "未登録教材を追加";
     }
   }
 
   if (saveBtn) {
-    saveBtn.textContent = mode === "edit" ? "\u4FDD\u5B58\u3059\u308B" : "\u8FFD\u52A0\u3059\u308B";
+    saveBtn.textContent = mode === "edit" ? "保存する" : "追加する";
   }
 
   if (deleteBtn) {
@@ -1243,7 +1244,8 @@ function removeItemFromState(itemId) {
 
 async function deleteCustomItem(item) {
   if (!item?.isCustom || !canEdit()) return;
-  const confirmed = confirm("\u3053\u306E\u672A\u767B\u9332\u6559\u6750\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uff1F");
+
+  const confirmed = confirm("この未登録教材を削除しますか？");
   if (!confirmed) return;
 
   const originalSnapshot = state.originalSnapshotMap[item.id];
@@ -1274,56 +1276,67 @@ function openInputtedItemsDialog() {
 function renderInputtedItemsDialog() {
   const summaryEl = document.getElementById("inputtedItemsSummary");
   const listEl = document.getElementById("inputtedItemsList");
+  
   if (!summaryEl || !listEl) return;
 
   const inputtedItems = state.items.filter((item) => item.qty > 0);
-  const standardItems = inputtedItems.filter((item) => !item.isCustom);
-  const customItems = inputtedItems.filter((item) => item.isCustom);
-
-  summaryEl.textContent = `\u5168${inputtedItems.length}\u4EF6 / \u5408\u8A08 ${inputtedItems.reduce((sum, item) => sum + item.qty, 0)}\u518A`;
+  const hasCustom = inputtedItems.some(item => item.isCustom && item.qty > 0);
+  
+  summaryEl.innerHTML = `
+    <div class="review-summarybar">
+      <span>全${inputtedItems.length}件 / 合計 ${inputtedItems.reduce((sum, item) => sum + item.qty, 0)}冊</span>
+    </div>
+  `;
 
   if (inputtedItems.length === 0) {
-    listEl.innerHTML = `<div class="empty">\u5165\u529B\u6E08\u307F\u306E\u6559\u6750\u306F\u307E\u3060\u3042\u308A\u307E\u305B\u3093\u3002</div>`;
+    listEl.innerHTML = `<div class="empty">入力済みの教材はまだありません。</div>`;
     return;
   }
 
-  const renderRows = (items) => items
-    .map((item) => {
-      const meta = [item.category, item.subject, item.publisher, item.edition]
-        .filter(Boolean)
-        .join(" / ");
-      return `
+  const renderRows = (items) =>
+    items
+      .map((item) => {
+        const displayName =
+          item.isCustom && item.edition
+            ? `${item.name} (${item.edition})`
+            : item.name;
+
+        return `
         <div class="review-row">
-          <div class="review-row-main">
-            <div class="review-row-name">${escapeHtml(item.name)}</div>
-            <div class="review-row-meta">${escapeHtml(meta)}</div>
-          </div>
+          <div class="review-cell review-cell-mark">${item.isCustom ? "＊" : ""}</div>
+          <div class="review-cell review-cell-name">${escapeHtml(displayName)}</div>
+          <div class="review-cell review-cell-meta">${escapeHtml(item.publisher || "-")}</div>
           <div class="review-row-qty num">${item.qty}</div>
         </div>
       `;
-    })
-    .join("");
+      })
+      .join("");
 
-  let html = "";
-  if (standardItems.length > 0) {
-    html += `
-      <section class="review-group">
-        <div class="review-group-title">\u6559\u6750</div>
-        ${renderRows(standardItems)}
-      </section>
-    `;
-  }
+  const renderTable = (items) => `
+    <div class="review-table-wrapper">
+      <div class="review-table">
+        <div class="review-head">
+          <div class="review-head-cell review-cell-mark"></div>
+          <div class="review-head-cell review-cell-name">教材名</div>
+          <div class="review-head-cell review-cell-meta">出版社</div>
+          <div class="review-head-cell review-head-cell-qty">冊数</div>
+        </div>
+        <div class="review-body">
+          ${renderRows(items)}
+        </div>
+      </div>
 
-  if (customItems.length > 0) {
-    html += `
-      <section class="review-group">
-        <div class="review-group-title">\u672A\u767B\u9332\u6559\u6750</div>
-        ${renderRows(customItems)}
-      </section>
-    `;
-  }
+      ${
+        hasCustom
+          ? `<div class="review-table-note">
+              <span class="mark">＊</span>…未登録教材
+            </div>`
+          : ""
+      }
+    </div>
+  `;
 
-  listEl.innerHTML = html;
+  listEl.innerHTML = renderTable(inputtedItems);
 }
 
 function handleCustomItemSubmit(e) {

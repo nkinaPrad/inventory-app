@@ -896,16 +896,14 @@ function handleListClick(e) {
     return;
   }
 
-  const itemEl = target.closest(".item");
-  if (!itemEl) return;
-
-  const id = itemEl.dataset.id;
-  if (!id) return;
-
-  const item = state.itemsById.get(id);
-  if (!item) return;
-
   if (target.closest(".qty-btn")) {
+    const itemEl = target.closest(".item");
+    if (!itemEl) return;
+    const id = itemEl.dataset.id;
+    if (!id) return;
+    const item = state.itemsById.get(id);
+    if (!item) return;
+
     if (target.classList.contains("plus")) {
       changeQty(id, 1);
     } else if (target.classList.contains("minus")) {
@@ -917,6 +915,18 @@ function handleListClick(e) {
   if (target.closest(".qty-input")) {
     return;
   }
+
+  const mainArea = target.closest(".item-main");
+  if (!mainArea) return;
+
+  const itemEl = mainArea.closest(".item");
+  if (!itemEl) return;
+
+  const id = itemEl.dataset.id;
+  if (!id) return;
+
+  const item = state.itemsById.get(id);
+  if (!item) return;
 
   if (item.isCustom) {
     openCustomItemDialogForEdit(item);

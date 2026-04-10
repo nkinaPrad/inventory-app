@@ -43,7 +43,7 @@
                 type="button"
                 aria-pressed="false"
               >
-                &#x2610;&#x5165;&#x529B;&#x6E08;&#x307F;
+                ☐入力済み
               </button>
             </div>
             <div class="filter-divider" aria-hidden="true"></div>
@@ -51,7 +51,7 @@
               id="filterArea"
               class="filter-scroll"
               role="group"
-              aria-label="&#x6559;&#x6750;&#x30D5;&#x30A3;&#x30EB;&#x30BF;"
+              aria-label="教材フィルタ"
             ></div>
           </div>
         </div>
@@ -94,7 +94,7 @@
       一時的に通信ができないときには、ローカルにファイルを保存してください。（時間をおいても解決しない場合、本部までお知らせください）
     </div>
     <div class="menu-list">
-      <button id="viewInputtedListBtn" class="menu-item" type="button">&#x5165;&#x529B;&#x6E08;&#x307F;&#x6559;&#x6750;&#x4E00;&#x89A7;</button>
+      <button id="viewInputtedListBtn" class="menu-item" type="button">入力済み教材一覧</button>
       <button id="exportJsonBtn" class="menu-item" type="button">ファイルに保存</button>
       <button id="importJsonBtn" class="menu-item" type="button">ファイルを読込</button>
       <button id="closeToolMenuBtn" class="menu-item muted" type="button">閉じる</button>
@@ -103,8 +103,8 @@
 
   <dialog id="inputtedItemsDialog" class="menu-dialog review-dialog">
     <div class="modal-head">
-      <h2 class="modal-title">&#x5165;&#x529B;&#x6E08;&#x307F;&#x6559;&#x6750;&#x4E00;&#x89A7;</h2>
-      <button id="closeInputtedItemsBtn" class="dialog-close-btn" type="button" aria-label="&#x9589;&#x3058;&#x308B;">&#x00D7;</button>
+      <h2 class="modal-title">入力済み教材一覧</h2>
+      <button id="closeInputtedItemsBtn" class="dialog-close-btn" type="button" aria-label="閉じる">×</button>
     </div>
     <div class="modal-body">
       <div id="inputtedItemsSummary" class="info-message"></div>

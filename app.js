@@ -308,16 +308,16 @@ function initCustomItemHints() {
       message: "学年・編・巻番号まで含めた教材名を入力してください。",
     },
     {
-      fieldId: "customPublisher",
-      ariaLabel: "出版社の入力ヒント",
-      message:
-        "出版社名の入力は原則不要です。ただし、同名教材との混同を避けるため、汎用的な名称の場合は入力をお願いします（例：『夏期テキスト』『計算ドリル』など）。",
-    },
-    {
       fieldId: "customEdition",
       ariaLabel: "版・準拠の入力ヒント",
       message:
         "表紙（または背表紙）に版や準拠などの記載があれば入力してください。",
+    },
+    {
+      fieldId: "customPublisher",
+      ariaLabel: "出版社の入力ヒント",
+      message:
+        "出版社名の入力は原則不要です。ただし、教材名が汎用的な場合、同名教材との混同を避けるために入力をお願いします。<br>例えば、教材名が『夏期テキスト』『計算ドリル』などの場合は出版社を入力してください。",
     },
   ];
 
@@ -350,7 +350,7 @@ function initCustomItemHints() {
     tooltip.id = tooltipId;
     tooltip.className = "hint-tooltip";
     tooltip.setAttribute("role", "tooltip");
-    tooltip.textContent = message;
+    tooltip.innerHTML = message;
     trigger.setAttribute("aria-describedby", tooltipId);
 
     trigger.addEventListener("click", (event) => {

@@ -111,22 +111,38 @@
     />
 
     <dialog id="toolMenuDialog" class="menu-dialog">
-      <div class="menu-notice">
-        一時的に通信ができないときには、ローカルにファイルを保存してください。（時間をおいても解決しない場合、本部までお知らせください）
+      <div class="modal-head">
+        <h2 class="modal-title">メニュー</h2>
+        <button
+          id="closeToolMenuBtn"
+          class="dialog-close-btn"
+          type="button"
+          aria-label="閉じる"
+        >
+          ×
+        </button>
       </div>
       <div class="menu-list">
         <button id="viewInputtedListBtn" class="menu-item" type="button">
           入力内容を確認
         </button>
-        <button id="exportJsonBtn" class="menu-item" type="button">
-          ファイルに保存
+        <button id="exportCsvBtn" class="menu-item" type="button">
+          CSV出力
         </button>
-        <button id="importJsonBtn" class="menu-item" type="button">
-          ファイルを読込
-        </button>
-        <button id="closeToolMenuBtn" class="menu-item muted" type="button">
-          閉じる
-        </button>
+        <section class="menu-group" aria-labelledby="backupGroupTitle">
+          <h3 id="backupGroupTitle" class="menu-group-title">バックアップ</h3>
+          <div class="menu-row">
+            <button id="exportJsonBtn" class="menu-item" type="button">
+              保存
+            </button>
+            <button id="importJsonBtn" class="menu-item" type="button">
+              復元
+            </button>
+          </div>
+        </section>
+        <p class="menu-note">
+          ※通信エラー時は、バックアップ機能をご利用ください。入力内容をオフラインで保存し、あとで復元できます。
+        </p>
       </div>
     </dialog>
 
@@ -151,6 +167,14 @@
     <dialog id="customItemDialog">
       <div class="modal-head">
         <h2 class="modal-title">未登録教材を追加</h2>
+        <button
+          id="closeCustomDialogBtn"
+          class="dialog-close-btn"
+          type="button"
+          aria-label="閉じる"
+        >
+          ×
+        </button>
       </div>
 
       <form id="customItemForm" method="dialog">
@@ -200,7 +224,17 @@
                 >
                   −
                 </button>
-                <div id="customQtyValue" class="qty-num num">0</div>
+                <input
+                  id="customQtyInput"
+                  class="qty-input num"
+                  type="number"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  min="0"
+                  step="1"
+                  value="0"
+                  aria-label="数量"
+                />
                 <button
                   id="customQtyPlus"
                   type="button"
@@ -221,10 +255,10 @@
             type="button"
             hidden
           >
-            &#x524A;&#x9664;
+            削除する
           </button>
           <button id="cancelCustomBtn" class="btn-ghost" type="button">
-            閉じる
+            キャンセル
           </button>
           <button id="saveCustomBtn" class="btn-success" type="submit">
             追加する

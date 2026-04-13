@@ -276,6 +276,9 @@ function initUI() {
     .getElementById("cancelCustomBtn")
     ?.addEventListener("click", () => closeModal("customItemDialog"));
   document
+    .getElementById("closeCustomDialogBtn")
+    ?.addEventListener("click", () => closeModal("customItemDialog"));
+  document
     .getElementById("deleteCustomBtn")
     ?.addEventListener("click", handleDeleteCustomItem);
 
@@ -287,6 +290,11 @@ function initUI() {
   document.getElementById("importJsonBtn")?.addEventListener("click", () => {
     closeModal("toolMenuDialog");
     document.getElementById("importFileInput")?.click();
+  });
+
+  document.getElementById("exportCsvBtn")?.addEventListener("click", () => {
+    closeModal("toolMenuDialog");
+    exportCsv();
   });
 
   initCustomItemHints();
@@ -337,6 +345,7 @@ function initCustomItemHints() {
     trigger.type = "button";
     trigger.className = "hint-trigger";
     trigger.setAttribute("aria-label", ariaLabel);
+    trigger.tabIndex = -1;
 
     const icon = document.createElement("img");
     icon.className = "hint-icon";
@@ -901,20 +910,21 @@ function getEmptyMessage() {
 }
 
 function renderItemHTML(item) {
-  const topMeta = [item.publisher, item.edition].filter(Boolean).join(" / ");
+  const displayName = getDisplayItemName(item);
+  const topMeta = [item.publisher].filter(Boolean).join(" / ");
   const hasQty = item.qty > 0;
   return `
     <article class="item ${hasQty ? "has-qty" : ""} ${item.isCustom ? "custom-item" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="item-main">
         <div class="item-topline">
           <div class="item-badges">
-            <span class="badge badge-cat">${escapeHtml(item.category)}</span>
+            ${item.isCustom ? "" : `<span class="badge badge-cat">${escapeHtml(item.category)}</span>`}
             ${item.subject ? `<span class="badge badge-sub">${escapeHtml(item.subject)}</span>` : ""}
             ${item.isCustom ? `<span class="badge badge-custom">未登録教材</span>` : ""}
           </div>
           ${topMeta ? `<div class="item-publisher-top">${escapeHtml(topMeta)}</div>` : ""}
         </div>
-        <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-name">${escapeHtml(displayName)}</div>
       </div>
 
       <div class="qty-box">
@@ -987,6 +997,13 @@ function normalizeItem(raw) {
     .toLowerCase();
 
   return item;
+}
+
+function getDisplayItemName(item) {
+  if (item.isCustom && item.edition) {
+    return `${item.name}（${item.edition}）`;
+  }
+  return item.name;
 }
 
 function snapshotKey(item) {
@@ -1285,6 +1302,52 @@ function exportJsonBackup() {
   URL.revokeObjectURL(url);
 }
 
+function exportCsv() {
+  const exportItems = state.items.filter((item) => item.qty > 0);
+  const headers = [
+    "マスタ区分",
+    "商品コード",
+    "教材名",
+    "教科",
+    "出版社",
+    "部数",
+  ];
+
+  const rows = exportItems.map((item) => [
+    item.category,
+    item.isCustom ? "（未登録教材）" : item.id,
+    getDisplayItemName(item),
+    item.subject,
+    item.publisher,
+    item.qty,
+  ]);
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\r\n");
+
+  const blob = new Blob(["\uFEFF", csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `inventory_${state.roomKey || "unknown"}_${new Date().getTime()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  setInfoMessage(`CSVを出力しました (${exportItems.length}件)`);
+}
+
+function escapeCsvCell(value) {
+  const text = value == null ? "" : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 async function importJsonBackup(e) {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -1406,12 +1469,12 @@ function fillCustomItemForm(item = null) {
   const nameInput = document.getElementById("customName");
   const publisherInput = document.getElementById("customPublisher");
   const editionInput = document.getElementById("customEdition");
-  const qtyValue = document.getElementById("customQtyValue");
+  const qtyInput = document.getElementById("customQtyInput");
 
   if (nameInput) nameInput.value = item?.name || "";
   if (publisherInput) publisherInput.value = item?.publisher || "";
   if (editionInput) editionInput.value = item?.edition || "";
-  if (qtyValue) qtyValue.textContent = String(item?.qty ?? 0);
+  if (qtyInput) qtyInput.value = String(item?.qty ?? 0);
 }
 
 function openCustomItemDialogForCreate() {
@@ -1487,20 +1550,16 @@ function renderInputtedItemsDialog() {
   const renderRows = (items) =>
     items
       .map((item) => {
+        const displayName = getDisplayItemName(item);
         const publisherText = item.publisher
           ? escapeHtml(item.publisher)
           : `<span class="review-cell-meta-empty">（未入力）</span>`;
-        const editionHtml =
-          item.isCustom && item.edition
-            ? `<div class="review-cell-sub">${escapeHtml(item.edition)}</div>`
-            : "";
 
         return `
         <div class="review-row">
           <div class="review-cell review-cell-mark">${item.isCustom ? "＊" : ""}</div>
           <div class="review-cell review-cell-name">
-            <div class="review-cell-title">${escapeHtml(item.name)}</div>
-            ${editionHtml}
+            <div class="review-cell-title">${escapeHtml(displayName)}</div>
           </div>
           <div class="review-cell review-cell-meta">${publisherText}</div>
           <div class="review-row-qty num">${item.qty}</div>
@@ -1546,10 +1605,8 @@ function handleCustomItemSubmit(e) {
     document.getElementById("customPublisher")?.value.trim() || "";
   const edition = document.getElementById("customEdition")?.value.trim() || "";
 
-  const qtyEl =
-    document.getElementById("customQtyInput") ||
-    document.getElementById("customQtyValue");
-  const qty = parseInt(qtyEl?.value || qtyEl?.textContent || "0", 10) || 0;
+  const qtyEl = document.getElementById("customQtyInput");
+  const qty = parseInt(qtyEl?.value || "0", 10) || 0;
 
   if (!name) {
     alert("教材名を入力してください。");
@@ -1594,9 +1651,6 @@ function handleCustomItemSubmit(e) {
 
   const qtyInput = document.getElementById("customQtyInput");
   if (qtyInput) qtyInput.value = "0";
-
-  const qtyValue = document.getElementById("customQtyValue");
-  if (qtyValue) qtyValue.textContent = "0";
 
   closeModal("customItemDialog");
   setCustomDialogMode("create");

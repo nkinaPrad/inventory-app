@@ -52,7 +52,9 @@ body {
     "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
   font-weight: 500;
   line-height: 1.5;
-  font-feature-settings: "palt" 1, "tnum" 1;
+  font-feature-settings:
+    "palt" 1,
+    "tnum" 1;
   -webkit-font-smoothing: antialiased;
   padding-bottom: 120px;
 }
@@ -977,52 +979,83 @@ dialog::backdrop {
 }
 
 .dialog-close-btn {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--line);
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line-2);
   border-radius: 12px;
-  background: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   color: var(--sub);
   font-size: 28px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
   cursor: pointer;
 }
 
 .dialog-close-btn:hover {
-  background: #f8fafc;
-}
-
-.menu-notice {
-  padding: 16px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--sub);
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
 }
 
 .menu-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   padding: 16px;
 }
 
-.menu-item {
-  min-height: 44px;
+.menu-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--sub);
+}
+
+.menu-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.menu-group {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
   border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 12px;
+  border-radius: 16px;
+}
+
+.menu-group-title {
+  margin: 0 0 4px;
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
 }
 
+.menu-item {
+  min-height: 44px;
+  border: 1px solid var(--line-2);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
 .menu-item:hover {
-  background: #f8fafc;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
 }
 
 .menu-item.muted {
   color: var(--sub);
+}
+
+@media (max-width: 420px) {
+  .menu-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .btn-ghost.danger {
@@ -1042,6 +1075,10 @@ dialog::backdrop {
 }
 
 .modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1059,7 +1096,12 @@ dialog::backdrop {
   border-top: 1px solid var(--line);
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+#deleteCustomBtn {
+  margin-right: auto;
 }
 
 .form-grid {
@@ -1091,8 +1133,8 @@ dialog::backdrop {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 17px;
+  height: 17px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1107,8 +1149,8 @@ dialog::backdrop {
 
 .hint-icon {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .hint-trigger:hover .hint-icon,
@@ -1135,7 +1177,10 @@ dialog::backdrop {
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);
-  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s ease;
   pointer-events: none;
 }
 
@@ -1292,6 +1337,10 @@ dialog::backdrop {
   .modal-foot {
     flex-direction: column;
   }
+
+  #deleteCustomBtn {
+    margin-right: 0;
+  }
 }
 
 /* ====================================================================
@@ -1306,4 +1355,3 @@ input::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
-

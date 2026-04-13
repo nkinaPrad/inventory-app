@@ -1,160 +1,239 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>プラドアカデミー教材棚卸</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="top-panel">
-    <div class="top-panel-inner">
-      <div class="head-main">
-        <div class="title-wrap">
-          <h1 class="title">教材棚卸</h1>
-          <div id="roomLabel" class="room-badge"></div>
-        </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>プラドアカデミー教材棚卸</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top-panel">
+      <div class="top-panel-inner">
+        <div class="head-main">
+          <div class="title-wrap">
+            <h1 class="title">教材棚卸</h1>
+            <div id="roomLabel" class="room-badge"></div>
+          </div>
 
-        <div class="head-actions">
-          <button id="toolMenuBtnAddCustom" class="btn-subtle btn-subtle-add" type="button">＋ 未登録教材を追加</button>
-          <button id="toolMenuBtn" class="btn-subtle btn-subtle-other" type="button">…</button>
-        </div>
-      </div>
-
-      <div class="toolbar-card">
-        <div class="access-bar" id="accessBar">
-          <div id="infoMessage" class="info-message"></div>
-          <div id="errorMessage" class="error-message" hidden></div>
-        </div>
-        
-        <div class="search-wrap">
-          <input
-            id="searchInput"
-            class="search-input"
-            type="search"
-            placeholder="教材名・出版社で検索..."
-            autocomplete="off"
-          />
-          <div class="filter-layout">
-            <div class="filter-pinned">
-              <button
-                id="inputOnlyToggle"
-                class="f-chip f-chip-toggle"
-                type="button"
-                aria-pressed="false"
-              >
-                ☐入力済み
-              </button>
-            </div>
-            <div class="filter-divider" aria-hidden="true"></div>
-            <div
-              id="filterArea"
-              class="filter-scroll"
-              role="group"
-              aria-label="教材フィルタ"
-            ></div>
+          <div class="head-actions">
+            <button
+              id="toolMenuBtnAddCustom"
+              class="btn-subtle btn-subtle-add"
+              type="button"
+            >
+              ＋ 未登録教材を追加
+            </button>
+            <button
+              id="toolMenuBtn"
+              class="btn-subtle btn-subtle-other"
+              type="button"
+            >
+              …
+            </button>
           </div>
         </div>
 
-        <div id="metaPanel" class="meta-panel always-open">
+        <div class="toolbar-card">
+          <div class="access-bar" id="accessBar">
+            <div id="infoMessage" class="info-message"></div>
+            <div id="errorMessage" class="error-message" hidden></div>
+          </div>
+
+          <div class="search-wrap">
+            <input
+              id="searchInput"
+              class="search-input"
+              type="search"
+              placeholder="教材名・出版社で検索..."
+              autocomplete="off"
+            />
+            <div class="filter-layout">
+              <div class="filter-pinned">
+                <button
+                  id="inputOnlyToggle"
+                  class="f-chip f-chip-toggle"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  ☐入力済み
+                </button>
+              </div>
+              <div class="filter-divider" aria-hidden="true"></div>
+              <div
+                id="filterArea"
+                class="filter-scroll"
+                role="group"
+                aria-label="教材フィルタ"
+              ></div>
+            </div>
+          </div>
+
+          <div id="metaPanel" class="meta-panel always-open"></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="list-wrap">
+        <div id="list"></div>
+      </section>
+    </main>
+
+    <div class="bottom-bar">
+      <div class="bottom-inner compact">
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">合計部数</span>
+            <span id="totalQty" class="summary-value num">0</span>
+            <span class="summary-unit">部</span>
+          </div>
+          <div class="summary-item summary-item-status">
+            <span id="dirtyCount" class="summary-label"></span>
+          </div>
+        </div>
+
+        <div class="bottom-actions">
+          <button id="sendBtn" class="btn-main" disabled type="button">
+            保存する
+          </button>
         </div>
       </div>
     </div>
-  </header>
 
-  <main class="shell">
-    <section class="list-wrap">
-      <div id="list"></div>
-    </section>
-  </main>
+    <input
+      id="importFileInput"
+      type="file"
+      accept=".json,application/json"
+      hidden
+    />
 
-  <div class="bottom-bar">
-    <div class="bottom-inner compact">
-      <div class="summary-grid">
-        <div class="summary-item">
-          <span class="summary-label">合計部数</span>
-          <span id="totalQty" class="summary-value num">0</span>
-          <span class="summary-unit">部</span>
-        </div>
-        <div class="summary-item">
-          <span id="dirtyCount" class="summary-label"></span>
-        </div>
+    <dialog id="toolMenuDialog" class="menu-dialog">
+      <div class="menu-notice">
+        一時的に通信ができないときには、ローカルにファイルを保存してください。（時間をおいても解決しない場合、本部までお知らせください）
       </div>
-
-      <div class="bottom-actions">
-        <button id="sendBtn" class="btn-main" disabled type="button">保存する</button>
+      <div class="menu-list">
+        <button id="viewInputtedListBtn" class="menu-item" type="button">
+          入力内容を確認
+        </button>
+        <button id="exportJsonBtn" class="menu-item" type="button">
+          ファイルに保存
+        </button>
+        <button id="importJsonBtn" class="menu-item" type="button">
+          ファイルを読込
+        </button>
+        <button id="closeToolMenuBtn" class="menu-item muted" type="button">
+          閉じる
+        </button>
       </div>
-    </div>
-  </div>
+    </dialog>
 
-  <input id="importFileInput" type="file" accept=".json,application/json" hidden />
-
-  <dialog id="toolMenuDialog" class="menu-dialog">
-    <div class="menu-notice">
-      一時的に通信ができないときには、ローカルにファイルを保存してください。（時間をおいても解決しない場合、本部までお知らせください）
-    </div>
-    <div class="menu-list">
-      <button id="viewInputtedListBtn" class="menu-item" type="button">入力済み教材一覧</button>
-      <button id="exportJsonBtn" class="menu-item" type="button">ファイルに保存</button>
-      <button id="importJsonBtn" class="menu-item" type="button">ファイルを読込</button>
-      <button id="closeToolMenuBtn" class="menu-item muted" type="button">閉じる</button>
-    </div>
-  </dialog>
-
-  <dialog id="inputtedItemsDialog" class="menu-dialog review-dialog">
-    <div class="modal-head">
-      <h2 class="modal-title">入力済み教材一覧</h2>
-      <button id="closeInputtedItemsBtn" class="dialog-close-btn" type="button" aria-label="閉じる">×</button>
-    </div>
-    <div class="modal-body">
-      <div id="inputtedItemsSummary" class="info-message"></div>
-      <div id="inputtedItemsList" class="review-list"></div>
-    </div>
-  </dialog>
-
-  <dialog id="customItemDialog">
-    <div class="modal-head">
-      <h2 class="modal-title">未登録教材を追加</h2>
-    </div>
-
-    <form id="customItemForm" method="dialog">
+    <dialog id="inputtedItemsDialog" class="menu-dialog review-dialog">
+      <div class="modal-head">
+        <h2 class="modal-title">入力済み教材一覧</h2>
+        <button
+          id="closeInputtedItemsBtn"
+          class="dialog-close-btn"
+          type="button"
+          aria-label="閉じる"
+        >
+          ×
+        </button>
+      </div>
       <div class="modal-body">
-        <div class="form-grid">
-          <div class="form-row">
-            <label for="customName">教材名 <span style="color:#dc2626;">※必須</span></label>
-            <input id="customName" class="input" type="text" placeholder="例：サンプル問題集 社会 中3 / よくわかる高校数学" required />
-          </div>
+        <div id="inputtedItemsSummary" class="info-message"></div>
+        <div id="inputtedItemsList" class="review-list"></div>
+      </div>
+    </dialog>
 
-          <div class="form-row">
-            <label for="customPublisher">出版社</label>
-            <input id="customPublisher" class="input" type="text" placeholder="（任意）※教材名で書籍が特定できない場合に記入" />
-          </div>
+    <dialog id="customItemDialog">
+      <div class="modal-head">
+        <h2 class="modal-title">未登録教材を追加</h2>
+      </div>
 
-          <div class="form-row">
-            <label for="customEdition">版・準拠・補足情報</label>
-            <input id="customEdition" class="input" type="text" placeholder="例：改訂版 / 東書 / 20XX年度版 など" />
-          </div>
+      <form id="customItemForm" method="dialog">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-row">
+              <label for="customName"
+                >教材名 <span style="color: #dc2626">※必須</span></label
+              >
+              <input
+                id="customName"
+                class="input"
+                type="text"
+                placeholder="例：サンプル問題集 社会 中3 / よくわかる高校数学"
+                required
+              />
+            </div>
 
-          <div class="form-row">
-            <label>数量</label>
-            <div class="qty-box custom-qty-box">
-              <button id="customQtyMinus" type="button" class="qty-btn minus" aria-label="減らす">−</button>
-              <div id="customQtyValue" class="qty-num num">0</div>
-              <button id="customQtyPlus" type="button" class="qty-btn plus" aria-label="増やす">＋</button>
+            <div class="form-row">
+              <label for="customPublisher">出版社</label>
+              <input
+                id="customPublisher"
+                class="input"
+                type="text"
+                placeholder="（任意）"
+              />
+            </div>
+
+            <div class="form-row">
+              <label for="customEdition">版・準拠</label>
+              <input
+                id="customEdition"
+                class="input"
+                type="text"
+                placeholder="例：改訂版 / 20XX年度版 / 東書 など"
+              />
+            </div>
+
+            <div class="form-row">
+              <label>数量</label>
+              <div class="qty-box custom-qty-box">
+                <button
+                  id="customQtyMinus"
+                  type="button"
+                  class="qty-btn minus"
+                  aria-label="減らす"
+                >
+                  −
+                </button>
+                <div id="customQtyValue" class="qty-num num">0</div>
+                <button
+                  id="customQtyPlus"
+                  type="button"
+                  class="qty-btn plus"
+                  aria-label="増やす"
+                >
+                  ＋
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="modal-foot">
-        <button id="deleteCustomBtn" class="btn-ghost danger" type="button" hidden>&#x524A;&#x9664;</button>
-        <button id="cancelCustomBtn" class="btn-ghost" type="button">閉じる</button>
-        <button id="saveCustomBtn" class="btn-success" type="submit">追加する</button>
-      </div>
-    </form>
-  </dialog>
+        <div class="modal-foot">
+          <button
+            id="deleteCustomBtn"
+            class="btn-ghost danger"
+            type="button"
+            hidden
+          >
+            &#x524A;&#x9664;
+          </button>
+          <button id="cancelCustomBtn" class="btn-ghost" type="button">
+            閉じる
+          </button>
+          <button id="saveCustomBtn" class="btn-success" type="submit">
+            追加する
+          </button>
+        </div>
+      </form>
+    </dialog>
 
-  <script src="data.js"></script>
-  <script type="module" src="app.js"></script>
-</body>
+    <script src="data.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
 </html>

@@ -12,7 +12,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
 const ROOM_LABEL_MAP = {
@@ -23,13 +23,14 @@ const ROOM_LABEL_MAP = {
   itabashi: "板橋",
   minamisenju: "南千住",
   kiba: "木場",
-  gakuin: "学院"
+  gakuin: "学院",
 };
 
 const SEARCH_DEBOUNCE_MS = 120;
 const INITIAL_VISIBLE_COUNT = 30;
 const LOAD_MORE_COUNT = 30;
 const AUTO_SAVE_DELAY_MS = 5000;
+const AUTO_SAVE_MAX_INTERVAL_MS = 30000;
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
@@ -44,7 +45,7 @@ const INFO_MESSAGES = {
   AUTO_SAVING: "自動保存中...",
   MANUAL_SAVED: "保存しました。",
   AUTO_SAVED: "自動保存しました。",
-  EDITING: "編集中"
+  EDITING: "編集中",
 };
 
 const ERROR_MESSAGES = {
@@ -53,10 +54,11 @@ const ERROR_MESSAGES = {
   DISABLED_URL: "このURLは現在無効です。",
   ACCESS_CHECK_FAILED: "アクセス確認に失敗しました。通信状態をご確認ください。",
   LOAD_FAILED: "データ取得に失敗しました。",
-  SAVE_FAILED: "保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。",
+  SAVE_FAILED:
+    "保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。",
   AUTO_SAVE_RETRY: "未保存の変更があります。保存ボタンで再試行してください。",
   SAVE_NOT_ALLOWED: "このURLでは保存できません。",
-  ADD_CUSTOM_NOT_ALLOWED: "このURLでは未登録教材を追加できません。"
+  ADD_CUSTOM_NOT_ALLOWED: "このURLでは未登録教材を追加できません。",
 };
 
 const state = {
@@ -75,6 +77,7 @@ const state = {
   originalSnapshotMap: Object.create(null),
   visibleCount: INITIAL_VISIBLE_COUNT,
   autoSaveTimerId: null,
+  autoSaveMaxTimerId: null,
   autoSaveSuspended: false,
   hasShownRetryNotice: false,
   isLocalPreview: false,
@@ -84,22 +87,22 @@ const state = {
   tokenDocData: null,
   customDialogMode: "create",
   editingCustomItemId: "",
-  deletedItemIds: new Set()
+  deletedItemIds: new Set(),
 };
 
 let listTouchStartY = 0;
 let listTouchMoved = false;
 let ignoreClickUntil = 0;
+let lockedBodyScrollY = 0;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(location.search);
   state.token = (params.get("token") || "").trim();
 
-  state.isLocalPreview = (
+  state.isLocalPreview =
     location.protocol === "file:" ||
     location.hostname === "localhost" ||
-    location.hostname === "127.0.0.1"
-  );
+    location.hostname === "127.0.0.1";
 
   initUI();
 
@@ -112,7 +115,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateStatsUI();
 
     if (state.isLocalPreview) {
-      setInfoMessage("ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。", false);
+      setInfoMessage(
+        "ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。",
+        false,
+      );
       clearErrorMessage();
       setReadOnlyMode(false);
     } else {
@@ -134,7 +140,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyFilterAndRender();
     updateStatsUI();
 
-    setInfoMessage("ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。", false);
+    setInfoMessage(
+      "ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。",
+      false,
+    );
     clearErrorMessage();
     setReadOnlyMode(false);
     return;
@@ -150,6 +159,17 @@ function initUI() {
   const filterArea = document.getElementById("filterArea");
   const inputOnlyToggle = document.getElementById("inputOnlyToggle");
   const list = document.getElementById("list");
+  const dirtyCountEl = document.getElementById("dirtyCount");
+  const bottomActions = document.querySelector(".bottom-actions");
+
+  if (dirtyCountEl && bottomActions) {
+    const dirtyCountWrap = dirtyCountEl.parentElement;
+    dirtyCountEl.classList.add("bottom-status");
+    bottomActions.insertBefore(dirtyCountEl, sendBtn || null);
+    if (dirtyCountWrap && dirtyCountWrap.childElementCount === 0) {
+      dirtyCountWrap.remove();
+    }
+  }
 
   if (roomLabelEl) {
     if (state.roomLabel) {
@@ -163,11 +183,16 @@ function initUI() {
     }
   }
 
-  searchInput?.addEventListener("input", debounce((e) => {
-    state.query = String(e.target.value || "").trim().toLowerCase();
-    state.visibleCount = INITIAL_VISIBLE_COUNT;
-    applyFilterAndRender();
-  }, SEARCH_DEBOUNCE_MS));
+  searchInput?.addEventListener(
+    "input",
+    debounce((e) => {
+      state.query = String(e.target.value || "")
+        .trim()
+        .toLowerCase();
+      state.visibleCount = INITIAL_VISIBLE_COUNT;
+      applyFilterAndRender();
+    }, SEARCH_DEBOUNCE_MS),
+  );
 
   filterArea?.addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip[data-filter]");
@@ -211,28 +236,48 @@ function initUI() {
     void sendData({ silent: false, isManualRetry: true });
   });
 
-  document.getElementById("toolMenuBtn")?.addEventListener("click", () => openModal("toolMenuDialog"));
-  document.getElementById("closeToolMenuBtn")?.addEventListener("click", () => closeModal("toolMenuDialog"));
-  document.getElementById("viewInputtedListBtn")?.addEventListener("click", () => {
-    closeModal("toolMenuDialog");
-    openInputtedItemsDialog();
-  });
-  document.getElementById("closeInputtedItemsBtn")?.addEventListener("click", () => closeModal("inputtedItemsDialog"));
+  document
+    .getElementById("toolMenuBtn")
+    ?.addEventListener("click", () => openModal("toolMenuDialog"));
+  document
+    .getElementById("closeToolMenuBtn")
+    ?.addEventListener("click", () => closeModal("toolMenuDialog"));
+  document
+    .getElementById("viewInputtedListBtn")
+    ?.addEventListener("click", () => {
+      closeModal("toolMenuDialog");
+      openInputtedItemsDialog();
+    });
+  document
+    .getElementById("closeInputtedItemsBtn")
+    ?.addEventListener("click", () => closeModal("inputtedItemsDialog"));
 
-  document.getElementById("toolMenuBtnAddCustom")?.addEventListener("click", () => {
-    if (!canEdit()) {
-      setErrorMessage(ERROR_MESSAGES.ADD_CUSTOM_NOT_ALLOWED);
-      return;
-    }
-    closeModal("toolMenuDialog");
-    openCustomItemDialogForCreate();
-  });
+  document
+    .getElementById("toolMenuBtnAddCustom")
+    ?.addEventListener("click", () => {
+      if (!canEdit()) {
+        setErrorMessage(ERROR_MESSAGES.ADD_CUSTOM_NOT_ALLOWED);
+        return;
+      }
+      closeModal("toolMenuDialog");
+      openCustomItemDialogForCreate();
+    });
 
-  document.getElementById("customQtyMinus")?.addEventListener("click", () => changeCustomQty(-1));
-  document.getElementById("customQtyPlus")?.addEventListener("click", () => changeCustomQty(1));
-  document.getElementById("customItemForm")?.addEventListener("submit", handleCustomItemSubmit);
-  document.getElementById("cancelCustomBtn")?.addEventListener("click", () => closeModal("customItemDialog"));
-  document.getElementById("deleteCustomBtn")?.addEventListener("click", handleDeleteCustomItem);
+  document
+    .getElementById("customQtyMinus")
+    ?.addEventListener("click", () => changeCustomQty(-1));
+  document
+    .getElementById("customQtyPlus")
+    ?.addEventListener("click", () => changeCustomQty(1));
+  document
+    .getElementById("customItemForm")
+    ?.addEventListener("submit", handleCustomItemSubmit);
+  document
+    .getElementById("cancelCustomBtn")
+    ?.addEventListener("click", () => closeModal("customItemDialog"));
+  document
+    .getElementById("deleteCustomBtn")
+    ?.addEventListener("click", handleDeleteCustomItem);
 
   document.getElementById("exportJsonBtn")?.addEventListener("click", () => {
     closeModal("toolMenuDialog");
@@ -244,11 +289,93 @@ function initUI() {
     document.getElementById("importFileInput")?.click();
   });
 
-  document.getElementById("importFileInput")?.addEventListener("change", importJsonBackup);
+  initCustomItemHints();
+
+  document
+    .getElementById("importFileInput")
+    ?.addEventListener("change", importJsonBackup);
 
   attachDialogBackdropClose("toolMenuDialog");
   attachDialogBackdropClose("inputtedItemsDialog");
   attachDialogBackdropClose("customItemDialog");
+}
+
+function initCustomItemHints() {
+  const hintConfigs = [
+    {
+      fieldId: "customName",
+      ariaLabel: "教材名の入力ヒント",
+      message: "学年・編・巻番号まで含めた教材名を入力してください。",
+    },
+    {
+      fieldId: "customPublisher",
+      ariaLabel: "出版社の入力ヒント",
+      message:
+        "出版社名の入力は原則不要です。ただし、同名教材との混同を避けるため、汎用的な名称の場合は入力をお願いします（例：『夏期テキスト』『計算ドリル』など）。",
+    },
+    {
+      fieldId: "customEdition",
+      ariaLabel: "版・準拠の入力ヒント",
+      message:
+        "表紙（または背表紙）に版や準拠などの記載があれば入力してください。",
+    },
+  ];
+
+  hintConfigs.forEach(({ fieldId, ariaLabel, message }) => {
+    const label = document.querySelector(
+      `#customItemDialog label[for="${fieldId}"]`,
+    );
+    const row = label?.closest(".form-row");
+    if (!label || !row || row.querySelector(".hint-trigger")) return;
+
+    const labelWrap = document.createElement("div");
+    labelWrap.className = "label-with-hint";
+    label.before(labelWrap);
+    labelWrap.appendChild(label);
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "hint-trigger";
+    trigger.setAttribute("aria-label", ariaLabel);
+
+    const icon = document.createElement("img");
+    icon.className = "hint-icon";
+    icon.src = "images/info.svg";
+    icon.alt = "";
+    icon.setAttribute("aria-hidden", "true");
+    trigger.appendChild(icon);
+
+    const tooltip = document.createElement("span");
+    const tooltipId = `${fieldId}Hint`;
+    tooltip.id = tooltipId;
+    tooltip.className = "hint-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.textContent = message;
+    trigger.setAttribute("aria-describedby", tooltipId);
+
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      document.querySelectorAll(".hint-trigger.is-open").forEach((button) => {
+        if (button !== trigger) {
+          button.classList.remove("is-open");
+        }
+      });
+      trigger.classList.toggle("is-open");
+    });
+
+    trigger.addEventListener("blur", () => {
+      trigger.classList.remove("is-open");
+    });
+
+    labelWrap.append(trigger, tooltip);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".label-with-hint")) return;
+    document.querySelectorAll(".hint-trigger.is-open").forEach((button) => {
+      button.classList.remove("is-open");
+    });
+  });
 }
 
 function syncInputOnlyToggleUI() {
@@ -269,7 +396,7 @@ function formatNow() {
   return new Date().toLocaleString("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit"
+    second: "2-digit",
   });
 }
 
@@ -280,7 +407,7 @@ function formatTimestamp(ts) {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
@@ -329,8 +456,12 @@ async function initAccessAndLoad() {
     const tokenData = tokenSnap.data() || {};
     state.tokenDocData = tokenData;
 
-    state.roomKey = String(tokenData.roomKey || "").trim().toLowerCase();
-    state.roomLabel = String(tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "").trim();
+    state.roomKey = String(tokenData.roomKey || "")
+      .trim()
+      .toLowerCase();
+    state.roomLabel = String(
+      tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "",
+    ).trim();
     updateRoomLabel();
 
     if (tokenData.enabled !== true) {
@@ -388,7 +519,7 @@ async function loadAppData() {
   try {
     const [masterData, inventoryMap] = await Promise.all([
       Promise.resolve(getFallbackMasterData()),
-      loadInventoryFromFirestore(state.token)
+      loadInventoryFromFirestore(state.token),
     ]);
 
     const latestUpdatedAt = getLatestUpdatedAt(inventoryMap);
@@ -474,7 +605,7 @@ function buildStateFromSources(masterData, inventoryMap) {
       publisher: m.publisher || "",
       edition: m.edition || "",
       qty: Number(savedData.qty) || 0,
-      isCustom: false
+      isCustom: false,
     });
 
     pushItemToState(item);
@@ -490,7 +621,7 @@ function buildStateFromSources(masterData, inventoryMap) {
       publisher: data.publisher || "",
       edition: data.edition || "",
       qty: Number(data.qty) || 0,
-      isCustom: true
+      isCustom: true,
     });
     pushItemToState(item);
   });
@@ -513,7 +644,12 @@ function pushNewDirtyItemToState(item) {
 async function sendData({ silent = false, isManualRetry = false } = {}) {
   if (state.isLocalPreview) {
     clearErrorMessage();
-    setInfoMessage(silent ? "ローカル確認モードです。保存送信は行いません。" : "ローカル確認モードです。Firestore保存は行いません。", false);
+    setInfoMessage(
+      silent
+        ? "ローカル確認モードです。保存送信は行いません。"
+        : "ローカル確認モードです。Firestore保存は行いません。",
+      false,
+    );
     clearAutoSaveTimer();
     return true;
   }
@@ -521,7 +657,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   if (!state.token || state.isSyncing || !canEdit()) return false;
 
   const dirtyItems = state.items.filter(
-    (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id]
+    (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id],
   );
   const deletedItemIds = Array.from(state.deletedItemIds);
 
@@ -540,7 +676,9 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   state.isSyncing = true;
   updateStatsUI();
   clearErrorMessage();
-  setInfoMessage(silent ? INFO_MESSAGES.AUTO_SAVING : INFO_MESSAGES.MANUAL_SAVING);
+  setInfoMessage(
+    silent ? INFO_MESSAGES.AUTO_SAVING : INFO_MESSAGES.MANUAL_SAVING,
+  );
 
   try {
     for (const itemId of deletedItemIds) {
@@ -561,12 +699,12 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
             edition: item.edition,
             qty: item.qty,
             isCustom: true,
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
           }
         : {
             qty: item.qty,
             isCustom: false,
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
           };
 
       await setDoc(ref, payload, { merge: true });
@@ -580,7 +718,9 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
     state.hasShownRetryNotice = false;
     clearAutoSaveTimer();
     clearErrorMessage();
-    setInfoMessage(silent ? INFO_MESSAGES.AUTO_SAVED : INFO_MESSAGES.MANUAL_SAVED);
+    setInfoMessage(
+      silent ? INFO_MESSAGES.AUTO_SAVED : INFO_MESSAGES.MANUAL_SAVED,
+    );
     return true;
   } catch (err) {
     console.error("保存失敗:", err);
@@ -605,7 +745,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 function scheduleAutoSave() {
   if (!canEdit()) return;
 
-  clearAutoSaveTimer();
+  clearAutoSaveDelayTimer();
 
   if (state.dirtyCount === 0) return;
 
@@ -618,15 +758,31 @@ function scheduleAutoSave() {
   setInfoMessage(INFO_MESSAGES.EDITING);
 
   state.autoSaveTimerId = setTimeout(() => {
-    state.autoSaveTimerId = null;
+    clearAutoSaveTimer();
     void sendData({ silent: true, isManualRetry: false });
   }, AUTO_SAVE_DELAY_MS);
+
+  if (!state.autoSaveMaxTimerId) {
+    state.autoSaveMaxTimerId = setTimeout(() => {
+      clearAutoSaveTimer();
+      void sendData({ silent: true, isManualRetry: false });
+    }, AUTO_SAVE_MAX_INTERVAL_MS);
+  }
 }
 
-function clearAutoSaveTimer() {
+function clearAutoSaveDelayTimer() {
   if (state.autoSaveTimerId) {
     clearTimeout(state.autoSaveTimerId);
     state.autoSaveTimerId = null;
+  }
+}
+
+function clearAutoSaveTimer() {
+  clearAutoSaveDelayTimer();
+
+  if (state.autoSaveMaxTimerId) {
+    clearTimeout(state.autoSaveMaxTimerId);
+    state.autoSaveMaxTimerId = null;
   }
 }
 
@@ -639,8 +795,8 @@ function generateCategoryChips() {
       state.items
         .filter((item) => !item.isCustom)
         .map((item) => item.category)
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ),
   );
 
   const isCategoryActive = (key) =>
@@ -690,9 +846,8 @@ function applyFilterAndRender() {
 
     if (item.isCustom) return false;
 
-    const matchesCategory = categoryFilter === "all"
-      ? true
-      : item.category === categoryFilter;
+    const matchesCategory =
+      categoryFilter === "all" ? true : item.category === categoryFilter;
 
     if (!matchesCategory) return false;
 
@@ -711,9 +866,10 @@ function renderFilteredItems() {
   if (!container) return;
 
   if (state.filteredItems.length === 0) {
-    const emptyText = state.activeCategoryFilter === "custom" && state.showOnlyInputted
-      ? "入力済みの未登録教材はありません。"
-      : getEmptyMessage();
+    const emptyText =
+      state.activeCategoryFilter === "custom" && state.showOnlyInputted
+        ? "入力済みの未登録教材はありません。"
+        : getEmptyMessage();
     container.innerHTML = `<div class="empty">${escapeHtml(emptyText)}</div>`;
     return;
   }
@@ -816,7 +972,7 @@ function normalizeItem(raw) {
     publisher: raw.publisher || "",
     edition: raw.edition || "",
     qty: Number(raw.qty) || 0,
-    isCustom: !!raw.isCustom
+    isCustom: !!raw.isCustom,
   };
 
   item.searchTag = [
@@ -824,7 +980,7 @@ function normalizeItem(raw) {
     item.category,
     item.subject,
     item.publisher,
-    item.edition
+    item.edition,
   ]
     .filter(Boolean)
     .join(" ")
@@ -864,9 +1020,10 @@ function setReadOnlyMode(isReadOnly) {
 
 function recalcTotalQty() {
   state.totalQty = state.items.reduce((sum, item) => sum + item.qty, 0);
-  state.dirtyCount = state.items.filter(
-    (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id]
-  ).length + state.deletedItemIds.size;
+  state.dirtyCount =
+    state.items.filter(
+      (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id],
+    ).length + state.deletedItemIds.size;
 }
 
 function updateStatsUI() {
@@ -879,7 +1036,8 @@ function updateStatsUI() {
   if (totalQtyEl) totalQtyEl.textContent = state.totalQty;
 
   if (dirtyCountEl) {
-    dirtyCountEl.textContent = state.dirtyCount > 0 ? `(未保存: ${state.dirtyCount})` : "";
+    dirtyCountEl.textContent =
+      state.dirtyCount > 0 ? `(未保存: ${state.dirtyCount})` : "";
   }
 
   if (sendBtn) {
@@ -1064,17 +1222,46 @@ function syncItemRowUI(itemEl, item) {
 
 function openModal(id) {
   const dialog = document.getElementById(id);
-  if (dialog) dialog.showModal();
+  if (!dialog || dialog.open) return;
+  dialog.showModal();
+  syncBodyScrollLock();
 }
 
 function closeModal(id) {
   const dialog = document.getElementById(id);
-  if (dialog) dialog.close();
+  if (!dialog || !dialog.open) return;
+  dialog.close();
+  syncBodyScrollLock();
 }
 
 function attachDialogBackdropClose(id) {
   const dialog = document.getElementById(id);
   if (!dialog) return;
+
+  dialog.addEventListener("close", syncBodyScrollLock);
+  dialog.addEventListener("cancel", syncBodyScrollLock);
+}
+
+function syncBodyScrollLock() {
+  const hasOpenDialog = Array.from(document.querySelectorAll("dialog")).some(
+    (dialog) => dialog.open,
+  );
+
+  if (hasOpenDialog) {
+    if (!document.body.classList.contains("modal-open")) {
+      lockedBodyScrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.style.top = `-${lockedBodyScrollY}px`;
+    }
+    document.body.classList.add("modal-open");
+    return;
+  }
+
+  if (document.body.classList.contains("modal-open")) {
+    document.body.classList.remove("modal-open");
+    document.body.style.top = "";
+    window.scrollTo(0, lockedBodyScrollY);
+    lockedBodyScrollY = 0;
+  }
 }
 
 function exportJsonBackup() {
@@ -1083,11 +1270,11 @@ function exportJsonBackup() {
     room: state.roomKey,
     roomLabel: state.roomLabel,
     exportedAt: new Date().toISOString(),
-    items: state.items.filter((it) => it.qty > 0 || it.isCustom)
+    items: state.items.filter((it) => it.qty > 0 || it.isCustom),
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json"
+    type: "application/json",
   });
 
   const url = URL.createObjectURL(blob);
@@ -1132,22 +1319,24 @@ async function importJsonBackup(e) {
             target.category,
             target.subject,
             target.publisher,
-            target.edition
+            target.edition,
           ]
             .filter(Boolean)
             .join(" ")
             .toLowerCase();
         } else if (importedItem.isCustom) {
-          pushNewDirtyItemToState(normalizeItem({
-            id: importedId,
-            name: importedItem.name || "名称未設定",
-            category: importedItem.category || "未登録教材",
-            subject: importedItem.subject || "",
-            publisher: importedItem.publisher || "",
-            edition: importedItem.edition || "",
-            qty: Number(importedItem.qty) || 0,
-            isCustom: true
-          }));
+          pushNewDirtyItemToState(
+            normalizeItem({
+              id: importedId,
+              name: importedItem.name || "名称未設定",
+              category: importedItem.category || "未登録教材",
+              subject: importedItem.subject || "",
+              publisher: importedItem.publisher || "",
+              edition: importedItem.edition || "",
+              qty: Number(importedItem.qty) || 0,
+              isCustom: true,
+            }),
+          );
         }
       });
 
@@ -1156,7 +1345,9 @@ async function importJsonBackup(e) {
       applyFilterAndRender();
       updateStatsUI();
       scheduleAutoSave();
-      alert("読み込みが完了しました。未保存の変更がある場合は保存してください。");
+      alert(
+        "読み込みが完了しました。未保存の変更がある場合は保存してください。",
+      );
     } catch (err) {
       alert("ファイルの読み込みに失敗しました: " + err.message);
     }
@@ -1276,12 +1467,12 @@ function openInputtedItemsDialog() {
 function renderInputtedItemsDialog() {
   const summaryEl = document.getElementById("inputtedItemsSummary");
   const listEl = document.getElementById("inputtedItemsList");
-  
+
   if (!summaryEl || !listEl) return;
 
   const inputtedItems = state.items.filter((item) => item.qty > 0);
-  const hasCustom = inputtedItems.some(item => item.isCustom && item.qty > 0);
-  
+  const hasCustom = inputtedItems.some((item) => item.isCustom && item.qty > 0);
+
   summaryEl.innerHTML = `
     <div class="review-summarybar">
       <span>全${inputtedItems.length}件 / 合計 ${inputtedItems.reduce((sum, item) => sum + item.qty, 0)}冊</span>
@@ -1296,16 +1487,22 @@ function renderInputtedItemsDialog() {
   const renderRows = (items) =>
     items
       .map((item) => {
-        const displayName =
+        const publisherText = item.publisher
+          ? escapeHtml(item.publisher)
+          : `<span class="review-cell-meta-empty">（未入力）</span>`;
+        const editionHtml =
           item.isCustom && item.edition
-            ? `${item.name} (${item.edition})`
-            : item.name;
+            ? `<div class="review-cell-sub">${escapeHtml(item.edition)}</div>`
+            : "";
 
         return `
         <div class="review-row">
           <div class="review-cell review-cell-mark">${item.isCustom ? "＊" : ""}</div>
-          <div class="review-cell review-cell-name">${escapeHtml(displayName)}</div>
-          <div class="review-cell review-cell-meta">${escapeHtml(item.publisher || "-")}</div>
+          <div class="review-cell review-cell-name">
+            <div class="review-cell-title">${escapeHtml(item.name)}</div>
+            ${editionHtml}
+          </div>
+          <div class="review-cell review-cell-meta">${publisherText}</div>
           <div class="review-row-qty num">${item.qty}</div>
         </div>
       `;
@@ -1345,7 +1542,8 @@ function handleCustomItemSubmit(e) {
 
   const name = document.getElementById("customName")?.value.trim() || "";
   const category = "未登録教材";
-  const publisher = document.getElementById("customPublisher")?.value.trim() || "";
+  const publisher =
+    document.getElementById("customPublisher")?.value.trim() || "";
   const edition = document.getElementById("customEdition")?.value.trim() || "";
 
   const qtyEl =
@@ -1370,7 +1568,7 @@ function handleCustomItemSubmit(e) {
       target.category,
       target.subject,
       target.publisher,
-      target.edition
+      target.edition,
     ]
       .filter(Boolean)
       .join(" ")
@@ -1386,7 +1584,7 @@ function handleCustomItemSubmit(e) {
       publisher,
       edition,
       qty,
-      isCustom: true
+      isCustom: true,
     });
 
     pushNewDirtyItemToState(newItem);

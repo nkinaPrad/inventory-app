@@ -57,6 +57,13 @@ body {
   padding-bottom: 120px;
 }
 
+body.modal-open {
+  position: fixed;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -231,9 +238,8 @@ textarea {
 .access-bar {
   display: grid;
   gap: 6px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
-  margin-bottom: 10px;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .info-message {
@@ -583,6 +589,7 @@ textarea {
   max-height: min(76vh, 760px);
   overflow: auto;
   padding-right: 2px;
+  overscroll-behavior: contain;
 }
 
 .review-group {
@@ -615,7 +622,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .review-table-wrapper {
@@ -651,7 +658,7 @@ textarea {
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
 }
 
 .review-head-cell,
@@ -682,6 +689,22 @@ textarea {
   font-weight: 700;
 }
 
+.review-cell-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.review-cell-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sub);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .review-cell-mark {
   text-align: center;
   font-size: 12px;
@@ -692,6 +715,10 @@ textarea {
 .review-cell-meta {
   font-size: 12px;
   color: var(--sub);
+}
+
+.review-cell-meta-empty {
+  color: var(--sub-soft);
 }
 
 .review-head-cell-qty,
@@ -830,6 +857,11 @@ textarea {
   min-height: 24px;
 }
 
+.summary-item-status {
+  min-height: 24px;
+  align-items: baseline;
+}
+
 .summary-label {
   font-size: 12px;
   color: var(--sub);
@@ -852,6 +884,11 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 10px;
+}
+
+.bottom-status {
+  white-space: nowrap;
 }
 
 .btn-main,
@@ -1035,10 +1072,92 @@ dialog::backdrop {
   gap: 6px;
 }
 
+.label-with-hint {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+
 .form-row label {
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
+}
+
+.hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: help;
+}
+
+.hint-trigger:hover,
+.hint-trigger:focus-visible,
+.hint-trigger.is-open {
+  outline: none;
+}
+
+.hint-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.hint-trigger:hover .hint-icon,
+.hint-trigger:focus-visible .hint-icon,
+.hint-trigger.is-open .hint-icon {
+  opacity: 0.8;
+}
+
+.hint-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: min(280px, calc(100vw - 64px));
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+  pointer-events: none;
+}
+
+.hint-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 18px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid #bfdbfe;
+  border-left: 1px solid #bfdbfe;
+  background: #eff6ff;
+  transform: rotate(45deg);
+}
+
+.hint-trigger:hover + .hint-tooltip,
+.hint-trigger:focus-visible + .hint-tooltip,
+.hint-trigger.is-open + .hint-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .input,

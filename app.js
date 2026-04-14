@@ -395,9 +395,12 @@ function syncInputOnlyToggleUI() {
   toggle.classList.toggle("active", isActive);
   toggle.classList.remove("is-disabled");
   toggle.setAttribute("aria-pressed", String(isActive));
-  toggle.setAttribute("aria-label", isActive ? "☑入力済み" : "☐入力済み");
+  toggle.setAttribute(
+    "aria-label",
+    isActive ? "入力済みのみを表示中" : "入力済みのみを表示",
+  );
   toggle.title = "入力済みのみを切り替え";
-  toggle.textContent = isActive ? "☑入力済み" : "☐入力済み";
+  toggle.textContent = "入力済みのみ";
   toggle.disabled = false;
 }
 

@@ -43,25 +43,24 @@
           </div>
 
           <div class="search-wrap">
-            <input
-              id="searchInput"
-              class="search-input"
-              type="search"
-              placeholder="教材名・出版社で検索..."
-              autocomplete="off"
-            />
+            <div class="search-main-row">
+              <input
+                id="searchInput"
+                class="search-input"
+                type="search"
+                placeholder="教材名・出版社で検索..."
+                autocomplete="off"
+              />
+              <button
+                id="inputOnlyToggle"
+                class="input-only-toggle"
+                type="button"
+                aria-pressed="false"
+              >
+                入力済みのみ
+              </button>
+            </div>
             <div class="filter-layout">
-              <div class="filter-pinned">
-                <button
-                  id="inputOnlyToggle"
-                  class="f-chip f-chip-toggle"
-                  type="button"
-                  aria-pressed="false"
-                >
-                  ☐入力済み
-                </button>
-              </div>
-              <div class="filter-divider" aria-hidden="true"></div>
               <div
                 id="filterArea"
                 class="filter-scroll"

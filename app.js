@@ -31,6 +31,7 @@ const INITIAL_VISIBLE_COUNT = 30;
 const LOAD_MORE_COUNT = 30;
 const AUTO_SAVE_DELAY_MS = 5000;
 const AUTO_SAVE_MAX_INTERVAL_MS = 30000;
+const INVENTORY_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
@@ -75,6 +76,7 @@ const state = {
   totalQty: 0,
   dirtyCount: 0,
   originalSnapshotMap: Object.create(null),
+  originalUpdatedAtMap: Object.create(null),
   visibleCount: INITIAL_VISIBLE_COUNT,
   autoSaveTimerId: null,
   autoSaveMaxTimerId: null,
@@ -88,6 +90,7 @@ const state = {
   customDialogMode: "create",
   editingCustomItemId: "",
   deletedItemIds: new Set(),
+  deletedItemMetaMap: Object.create(null),
 };
 
 let listTouchStartY = 0;
@@ -412,9 +415,22 @@ function formatNow() {
   });
 }
 
+function timestampToDate(ts) {
+  if (!ts) return null;
+  if (typeof ts.toDate === "function") return ts.toDate();
+  if (
+    typeof ts.seconds === "number" &&
+    typeof ts.nanoseconds === "number"
+  ) {
+    return new Date(ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1000000));
+  }
+  return null;
+}
+
 function formatTimestamp(ts) {
-  if (!ts || typeof ts.toDate !== "function") return "";
-  return ts.toDate().toLocaleString("ja-JP", {
+  const date = timestampToDate(ts);
+  if (!date) return "";
+  return date.toLocaleString("ja-JP", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -572,9 +588,149 @@ function getLatestUpdatedAt(inventoryMap) {
   return latest;
 }
 
+function getInventoryCacheKey(token) {
+  return `inventoryCache:${token}`;
+}
+
+function serializeTimestamp(ts) {
+  if (
+    !ts ||
+    typeof ts.seconds !== "number" ||
+    typeof ts.nanoseconds !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    seconds: ts.seconds,
+    nanoseconds: ts.nanoseconds,
+  };
+}
+
+function reviveTimestamp(ts) {
+  if (
+    !ts ||
+    typeof ts.seconds !== "number" ||
+    typeof ts.nanoseconds !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    seconds: ts.seconds,
+    nanoseconds: ts.nanoseconds,
+    toDate() {
+      return new Date(
+        ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1000000),
+      );
+    },
+  };
+}
+
+function readInventoryCache(token) {
+  if (!token) return null;
+
+  try {
+    const raw = localStorage.getItem(getInventoryCacheKey(token));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      !Array.isArray(parsed.items) ||
+      typeof parsed.cachedAt !== "number"
+    ) {
+      localStorage.removeItem(getInventoryCacheKey(token));
+      return null;
+    }
+
+    if (Date.now() - parsed.cachedAt > INVENTORY_CACHE_TTL_MS) {
+      localStorage.removeItem(getInventoryCacheKey(token));
+      return null;
+    }
+
+    const inventoryMap = new Map();
+
+    parsed.items.forEach((entry) => {
+      const id = String(entry?.id || "").trim();
+      if (!id || !entry?.data) return;
+
+      inventoryMap.set(id, {
+        ...entry.data,
+        updatedAt: reviveTimestamp(entry.data.updatedAt),
+      });
+    });
+
+    return inventoryMap;
+  } catch (err) {
+    console.warn("在庫キャッシュの読み込みに失敗:", err);
+    return null;
+  }
+}
+
+function writeInventoryCache(token, inventoryMap) {
+  if (!token) return;
+
+  try {
+    const items = Array.from(inventoryMap.entries()).map(([id, data]) => ({
+      id,
+      data: {
+        ...data,
+        updatedAt: serializeTimestamp(data?.updatedAt),
+      },
+    }));
+
+    localStorage.setItem(
+      getInventoryCacheKey(token),
+      JSON.stringify({
+        cachedAt: Date.now(),
+        items,
+      }),
+    );
+  } catch (err) {
+    console.warn("在庫キャッシュの保存に失敗:", err);
+  }
+}
+
+function clearInventoryCache(token) {
+  if (!token) return;
+
+  try {
+    localStorage.removeItem(getInventoryCacheKey(token));
+  } catch (err) {
+    console.warn("在庫キャッシュの削除に失敗:", err);
+  }
+}
+
+function buildInventoryMapFromState() {
+  const inventoryMap = new Map();
+
+  state.items.forEach((item) => {
+    const updatedAtKey = state.originalUpdatedAtMap[item.id] || "";
+    const hasRemoteState = updatedAtKey && updatedAtKey !== "__NEW_ITEM__";
+
+    if (!item.isCustom && item.qty === 0 && !hasRemoteState) {
+      return;
+    }
+
+    const data = buildFirestoreItemPayload(item);
+    delete data.updatedAt;
+
+    data.updatedAt = reviveTimestamp(parseTimestampKey(updatedAtKey));
+    inventoryMap.set(item.id, data);
+  });
+
+  return inventoryMap;
+}
+
 async function loadInventoryFromFirestore(token) {
   const inventoryMap = new Map();
   if (!token || !state.accessGranted) return inventoryMap;
+
+  const cachedInventoryMap = readInventoryCache(token);
+  if (cachedInventoryMap) {
+    return cachedInventoryMap;
+  }
 
   const itemsRef = collection(db, "inventory", token, "items");
   const snapshot = await getDocs(itemsRef);
@@ -583,6 +739,7 @@ async function loadInventoryFromFirestore(token) {
     inventoryMap.set(docSnap.id, docSnap.data());
   });
 
+  writeInventoryCache(token, inventoryMap);
   return inventoryMap;
 }
 
@@ -597,12 +754,14 @@ function buildStateFromSources(masterData, inventoryMap) {
   state.items = [];
   state.itemsById = new Map();
   state.originalSnapshotMap = Object.create(null);
+  state.originalUpdatedAtMap = Object.create(null);
   state.totalQty = 0;
   state.dirtyCount = 0;
   state.autoSaveSuspended = false;
   state.hasShownRetryNotice = false;
   state.visibleCount = INITIAL_VISIBLE_COUNT;
   state.deletedItemIds = new Set();
+  state.deletedItemMetaMap = Object.create(null);
 
   masterData.forEach((m) => {
     const id = String(m.id || "").trim();
@@ -620,7 +779,7 @@ function buildStateFromSources(masterData, inventoryMap) {
       isCustom: false,
     });
 
-    pushItemToState(item);
+    pushItemToState(item, savedData.updatedAt || null);
     inventoryMap.delete(id);
   });
 
@@ -635,22 +794,88 @@ function buildStateFromSources(masterData, inventoryMap) {
       qty: Number(data.qty) || 0,
       isCustom: true,
     });
-    pushItemToState(item);
+    pushItemToState(item, data.updatedAt || null);
   });
 
   recalcTotalQty();
 }
 
-function pushItemToState(item) {
+function pushItemToState(item, updatedAt = null) {
   state.items.push(item);
   state.itemsById.set(item.id, item);
   state.originalSnapshotMap[item.id] = snapshotKey(item);
+  state.originalUpdatedAtMap[item.id] = timestampKey(updatedAt);
 }
 
 function pushNewDirtyItemToState(item) {
   state.items.push(item);
   state.itemsById.set(item.id, item);
   state.originalSnapshotMap[item.id] = "__NEW_ITEM__";
+  state.originalUpdatedAtMap[item.id] = "__NEW_ITEM__";
+}
+
+function timestampKey(ts) {
+  if (
+    !ts ||
+    typeof ts.seconds !== "number" ||
+    typeof ts.nanoseconds !== "number"
+  ) {
+    return "";
+  }
+  return `${ts.seconds}_${ts.nanoseconds}`;
+}
+
+function parseTimestampKey(key) {
+  if (!key || key === "__NEW_ITEM__") return null;
+
+  const [secondsStr, nanosecondsStr] = String(key).split("_");
+  const seconds = Number(secondsStr);
+  const nanoseconds = Number(nanosecondsStr);
+
+  if (!Number.isFinite(seconds) || !Number.isFinite(nanoseconds)) {
+    return null;
+  }
+
+  return { seconds, nanoseconds };
+}
+
+function hasConflictWithRemote(originalUpdatedAtKey, remoteUpdatedAtKey) {
+  if (originalUpdatedAtKey === "__NEW_ITEM__") {
+    return remoteUpdatedAtKey !== "";
+  }
+  return originalUpdatedAtKey !== remoteUpdatedAtKey;
+}
+
+function syncOriginalState(item, updatedAt = null) {
+  state.originalSnapshotMap[item.id] = snapshotKey(item);
+  state.originalUpdatedAtMap[item.id] = timestampKey(updatedAt);
+  item.__dirty = false;
+}
+
+function replaceItemWithRemoteData(item, remoteData) {
+  item.qty = Number(remoteData?.qty) || 0;
+
+  if (item.isCustom) {
+    item.name = remoteData?.name || item.name;
+    item.publisher = remoteData?.publisher || "";
+    item.edition = remoteData?.edition || "";
+  }
+
+  item.searchTag = [
+    item.name,
+    item.category,
+    item.subject,
+    item.publisher,
+    item.edition,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function buildConflictMessage(conflictNames) {
+  const names = conflictNames.join("、");
+  return `${conflictNames.length}件は他の端末で更新されていたため保存していません。最新の内容を反映しました: ${names}`;
 }
 
 async function sendData({ silent = false, isManualRetry = false } = {}) {
@@ -693,30 +918,98 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   );
 
   try {
+    const conflictNames = [];
+    let savedCount = 0;
+
     for (const itemId of deletedItemIds) {
       const ref = doc(db, "inventory", state.token, "items", itemId);
+      const remoteSnap = await getDoc(ref);
+      const remoteData = remoteSnap.exists() ? remoteSnap.data() : null;
+      const remoteUpdatedAtKey = timestampKey(remoteData?.updatedAt);
+      const deletedMeta = state.deletedItemMetaMap[itemId];
+
+      if (
+        remoteSnap.exists() &&
+        deletedMeta &&
+        hasConflictWithRemote(deletedMeta.updatedAtKey, remoteUpdatedAtKey)
+      ) {
+        const restoredItem = normalizeItem({
+          id: itemId,
+          name: remoteData?.name || deletedMeta.name || "未登録教材",
+          category: "未登録教材",
+          subject: "",
+          publisher: remoteData?.publisher || "",
+          edition: remoteData?.edition || "",
+          qty: Number(remoteData?.qty) || 0,
+          isCustom: true,
+        });
+
+        pushItemToState(restoredItem, remoteData?.updatedAt || null);
+        conflictNames.push(getDisplayItemName(restoredItem));
+        delete state.deletedItemMetaMap[itemId];
+        state.deletedItemIds.delete(itemId);
+        continue;
+      }
+
       await deleteDoc(ref);
       state.deletedItemIds.delete(itemId);
+      delete state.deletedItemMetaMap[itemId];
+      savedCount += 1;
     }
 
     for (const item of dirtyItems) {
       const ref = doc(db, "inventory", state.token, "items", item.id);
+      const remoteSnap = await getDoc(ref);
+      const remoteData = remoteSnap.exists() ? remoteSnap.data() : null;
+      const remoteUpdatedAtKey = timestampKey(remoteData?.updatedAt);
+      const originalUpdatedAtKey = state.originalUpdatedAtMap[item.id] || "";
+
+      if (hasConflictWithRemote(originalUpdatedAtKey, remoteUpdatedAtKey)) {
+        if (remoteData) {
+          replaceItemWithRemoteData(item, remoteData);
+          syncOriginalState(item, remoteData.updatedAt || null);
+        } else if (item.isCustom) {
+          const conflictName = getDisplayItemName(item);
+          removeItemFromState(item.id);
+          conflictNames.push(conflictName);
+          continue;
+        }
+        conflictNames.push(getDisplayItemName(item));
+        continue;
+      }
+
       const payload = buildFirestoreItemPayload(item);
 
       await setDoc(ref, payload);
+      const savedSnap = await getDoc(ref);
+      const savedData = savedSnap.exists() ? savedSnap.data() : null;
 
-      state.originalSnapshotMap[item.id] = snapshotKey(item);
-      item.__dirty = false;
+      syncOriginalState(item, savedData?.updatedAt || null);
+      savedCount += 1;
     }
 
-    state.dirtyCount = 0;
+    recalcTotalQty();
+    applyFilterAndRender();
     state.autoSaveSuspended = false;
     state.hasShownRetryNotice = false;
     clearAutoSaveTimer();
     clearErrorMessage();
-    setInfoMessage(
-      silent ? INFO_MESSAGES.AUTO_SAVED : INFO_MESSAGES.MANUAL_SAVED,
-    );
+    if (conflictNames.length > 0) {
+      clearInventoryCache(state.token);
+      setErrorMessage(buildConflictMessage(conflictNames));
+      if (savedCount > 0) {
+        setInfoMessage(
+          `${savedCount}件を保存しました。競合した教材は最新の内容に更新しています。`,
+        );
+      } else {
+        setInfoMessage("競合した教材の最新内容を反映しました。");
+      }
+    } else {
+      writeInventoryCache(state.token, buildInventoryMapFromState());
+      setInfoMessage(
+        silent ? INFO_MESSAGES.AUTO_SAVED : INFO_MESSAGES.MANUAL_SAVED,
+      );
+    }
     return true;
   } catch (err) {
     console.error("保存失敗:", err);
@@ -1498,6 +1791,7 @@ function removeItemFromState(itemId) {
   state.items = state.items.filter((item) => item.id !== itemId);
   state.itemsById.delete(itemId);
   delete state.originalSnapshotMap[itemId];
+  delete state.originalUpdatedAtMap[itemId];
 }
 
 async function deleteCustomItem(item) {
@@ -1509,6 +1803,10 @@ async function deleteCustomItem(item) {
   const originalSnapshot = state.originalSnapshotMap[item.id];
   if (originalSnapshot && originalSnapshot !== "__NEW_ITEM__") {
     state.deletedItemIds.add(item.id);
+    state.deletedItemMetaMap[item.id] = {
+      name: getDisplayItemName(item),
+      updatedAtKey: state.originalUpdatedAtMap[item.id] || "",
+    };
   }
 
   removeItemFromState(item.id);

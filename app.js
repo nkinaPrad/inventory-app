@@ -701,25 +701,9 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 
     for (const item of dirtyItems) {
       const ref = doc(db, "inventory", state.token, "items", item.id);
+      const payload = buildFirestoreItemPayload(item);
 
-      const payload = item.isCustom
-        ? {
-            name: item.name,
-            category: item.category,
-            subject: item.subject,
-            publisher: item.publisher,
-            edition: item.edition,
-            qty: item.qty,
-            isCustom: true,
-            updatedAt: serverTimestamp(),
-          }
-        : {
-            qty: item.qty,
-            isCustom: false,
-            updatedAt: serverTimestamp(),
-          };
-
-      await setDoc(ref, payload, { merge: true });
+      await setDoc(ref, payload);
 
       state.originalSnapshotMap[item.id] = snapshotKey(item);
       item.__dirty = false;
@@ -1014,6 +998,23 @@ function snapshotKey(item) {
     return `${item.id}_${item.qty}_${item.name}_${item.publisher}_${item.edition}_${item.category}_${item.subject}_1`;
   }
   return `${item.id}_${item.qty}_0`;
+}
+
+function buildFirestoreItemPayload(item) {
+  const payload = {
+    qty: item.qty,
+    isCustom: !!item.isCustom,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (!item.isCustom) return payload;
+
+  payload.name = item.name;
+
+  if (item.publisher) payload.publisher = item.publisher;
+  if (item.edition) payload.edition = item.edition;
+
+  return payload;
 }
 
 function escapeHtml(str) {

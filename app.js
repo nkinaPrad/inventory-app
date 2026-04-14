@@ -479,6 +479,14 @@ function addLocalLog(type, message) {
   writeLocalLogs(logs);
 }
 
+function getLogTypeClass(type) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "conflict" || normalized === "error") {
+    return "log-entry-type is-alert";
+  }
+  return "log-entry-type";
+}
+
 function renderLocalLogsDialog() {
   const listEl = document.getElementById("localLogsList");
   if (!listEl) return;
@@ -496,7 +504,7 @@ function renderLocalLogsDialog() {
           (log) => `
             <article class="log-entry">
               <div class="log-entry-head">
-                <span class="log-entry-type">${escapeHtml(log.type || "info")}</span>
+                <span class="${getLogTypeClass(log.type)}">${escapeHtml(log.type || "info")}</span>
                 <span class="log-entry-time">${escapeHtml(formatDateTime(log.at))}</span>
               </div>
               <div class="log-entry-message">${escapeHtml(log.message || "")}</div>

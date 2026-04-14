@@ -644,6 +644,10 @@ textarea {
   color: var(--primary-deep);
 }
 
+.log-entry-type.is-alert {
+  color: var(--danger);
+}
+
 .log-entry-time {
   font-size: 11px;
   color: var(--sub-soft);

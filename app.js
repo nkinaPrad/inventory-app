@@ -430,9 +430,11 @@ function formatNow() {
 
 function formatDateTime(value) {
   const date =
-    value instanceof Date ? value : Number.isFinite(new Date(value).getTime())
-      ? new Date(value)
-      : null;
+    value instanceof Date
+      ? value
+      : Number.isFinite(new Date(value).getTime())
+        ? new Date(value)
+        : null;
   if (!date) return "";
 
   return date.toLocaleString("ja-JP", {
@@ -533,10 +535,7 @@ function clearLocalLogs() {
 function timestampToDate(ts) {
   if (!ts) return null;
   if (typeof ts.toDate === "function") return ts.toDate();
-  if (
-    typeof ts.seconds === "number" &&
-    typeof ts.nanoseconds === "number"
-  ) {
+  if (typeof ts.seconds === "number" && typeof ts.nanoseconds === "number") {
     return new Date(ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1000000));
   }
   return null;
@@ -737,9 +736,7 @@ function reviveTimestamp(ts) {
     seconds: ts.seconds,
     nanoseconds: ts.nanoseconds,
     toDate() {
-      return new Date(
-        ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1000000),
-      );
+      return new Date(ts.seconds * 1000 + Math.floor(ts.nanoseconds / 1000000));
     },
   };
 }
@@ -778,7 +775,10 @@ function readInventoryCache(token) {
       });
     });
 
-    addLocalLog("cache", `在庫キャッシュを使用しました (${inventoryMap.size}件)`);
+    addLocalLog(
+      "cache",
+      `在庫キャッシュを使用しました (${inventoryMap.size}件)`,
+    );
     return inventoryMap;
   } catch (err) {
     console.warn("在庫キャッシュの読み込みに失敗:", err);
@@ -859,7 +859,10 @@ async function loadInventoryFromFirestore(token) {
   });
 
   writeInventoryCache(token, inventoryMap);
-  addLocalLog("load", `Firestore から在庫を読み込みました (${inventoryMap.size}件)`);
+  addLocalLog(
+    "load",
+    `Firestore から在庫を読み込みました (${inventoryMap.size}件)`,
+  );
   return inventoryMap;
 }
 
@@ -995,7 +998,7 @@ function replaceItemWithRemoteData(item, remoteData) {
 
 function buildConflictMessage(conflictNames) {
   const names = conflictNames.join("、");
-  return `${conflictNames.length}件は他の端末で更新されていたため保存していません。最新の内容を反映しました: ${names}`;
+  return `${conflictNames.length}件は他の端末で更新されていたため保存していません。 対象: ${names}`;
 }
 
 async function sendData({ silent = false, isManualRetry = false } = {}) {

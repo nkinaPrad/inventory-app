@@ -125,6 +125,9 @@
         <button id="viewInputtedListBtn" class="menu-item" type="button">
           入力内容を確認
         </button>
+        <button id="viewLocalLogsBtn" class="menu-item" type="button">
+          ログを見る
+        </button>
         <button id="exportCsvBtn" class="menu-item" type="button">
           CSV出力
         </button>
@@ -160,6 +163,28 @@
       <div class="modal-body">
         <div id="inputtedItemsSummary" class="info-message"></div>
         <div id="inputtedItemsList" class="review-list"></div>
+      </div>
+    </dialog>
+
+    <dialog id="localLogsDialog" class="menu-dialog review-dialog">
+      <div class="modal-head">
+        <h2 class="modal-title">ローカルログ</h2>
+        <button
+          id="closeLocalLogsBtn"
+          class="dialog-close-btn"
+          type="button"
+          aria-label="閉じる"
+        >
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-inline-actions">
+          <button id="clearLocalLogsBtn" class="btn-ghost" type="button">
+            ログを消去
+          </button>
+        </div>
+        <div id="localLogsList" class="review-list"></div>
       </div>
     </dialog>
 

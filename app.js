@@ -32,6 +32,8 @@ const LOAD_MORE_COUNT = 30;
 const AUTO_SAVE_DELAY_MS = 5000;
 const AUTO_SAVE_MAX_INTERVAL_MS = 30000;
 const INVENTORY_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+const LOCAL_LOG_LIMIT = 80;
+const LOCAL_LOG_STORAGE_KEY = "inventoryLocalLogs";
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
@@ -251,9 +253,19 @@ function initUI() {
       closeModal("toolMenuDialog");
       openInputtedItemsDialog();
     });
+  document.getElementById("viewLocalLogsBtn")?.addEventListener("click", () => {
+    closeModal("toolMenuDialog");
+    openLocalLogsDialog();
+  });
   document
     .getElementById("closeInputtedItemsBtn")
     ?.addEventListener("click", () => closeModal("inputtedItemsDialog"));
+  document
+    .getElementById("closeLocalLogsBtn")
+    ?.addEventListener("click", () => closeModal("localLogsDialog"));
+  document
+    .getElementById("clearLocalLogsBtn")
+    ?.addEventListener("click", clearLocalLogs);
 
   document
     .getElementById("toolMenuBtnAddCustom")
@@ -308,6 +320,7 @@ function initUI() {
 
   attachDialogBackdropClose("toolMenuDialog");
   attachDialogBackdropClose("inputtedItemsDialog");
+  attachDialogBackdropClose("localLogsDialog");
   attachDialogBackdropClose("customItemDialog");
 }
 
@@ -415,6 +428,100 @@ function formatNow() {
   });
 }
 
+function formatDateTime(value) {
+  const date =
+    value instanceof Date ? value : Number.isFinite(new Date(value).getTime())
+      ? new Date(value)
+      : null;
+  if (!date) return "";
+
+  return date.toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function readLocalLogs() {
+  try {
+    const raw = localStorage.getItem(LOCAL_LOG_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn("ローカルログの読み込みに失敗:", err);
+    return [];
+  }
+}
+
+function writeLocalLogs(logs) {
+  try {
+    localStorage.setItem(
+      LOCAL_LOG_STORAGE_KEY,
+      JSON.stringify(logs.slice(0, LOCAL_LOG_LIMIT)),
+    );
+  } catch (err) {
+    console.warn("ローカルログの保存に失敗:", err);
+  }
+}
+
+function addLocalLog(type, message) {
+  const logs = readLocalLogs();
+  logs.unshift({
+    type,
+    message,
+    room: state.roomLabel || state.roomKey || "",
+    at: new Date().toISOString(),
+  });
+  writeLocalLogs(logs);
+}
+
+function renderLocalLogsDialog() {
+  const listEl = document.getElementById("localLogsList");
+  if (!listEl) return;
+
+  const logs = readLocalLogs();
+  if (logs.length === 0) {
+    listEl.innerHTML = `<div class="empty">ログはまだありません。</div>`;
+    return;
+  }
+
+  listEl.innerHTML = `
+    <div class="log-list">
+      ${logs
+        .map(
+          (log) => `
+            <article class="log-entry">
+              <div class="log-entry-head">
+                <span class="log-entry-type">${escapeHtml(log.type || "info")}</span>
+                <span class="log-entry-time">${escapeHtml(formatDateTime(log.at))}</span>
+              </div>
+              <div class="log-entry-message">${escapeHtml(log.message || "")}</div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function openLocalLogsDialog() {
+  renderLocalLogsDialog();
+  openModal("localLogsDialog");
+}
+
+function clearLocalLogs() {
+  try {
+    localStorage.removeItem(LOCAL_LOG_STORAGE_KEY);
+  } catch (err) {
+    console.warn("ローカルログの削除に失敗:", err);
+  }
+  renderLocalLogsDialog();
+}
+
 function timestampToDate(ts) {
   if (!ts) return null;
   if (typeof ts.toDate === "function") return ts.toDate();
@@ -508,6 +615,7 @@ async function initAccessAndLoad() {
     await loadAppData();
   } catch (err) {
     console.error("アクセス確認失敗:", err);
+    addLocalLog("error", "アクセス確認に失敗しました");
     setReadOnlyMode(true);
     setErrorMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
     renderEmptyMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
@@ -565,6 +673,7 @@ async function loadAppData() {
     }
   } catch (err) {
     console.error(err);
+    addLocalLog("error", "在庫データの読み込みに失敗しました");
     setErrorMessage(ERROR_MESSAGES.LOAD_FAILED);
     renderEmptyMessage(ERROR_MESSAGES.LOAD_FAILED);
   }
@@ -661,6 +770,7 @@ function readInventoryCache(token) {
       });
     });
 
+    addLocalLog("cache", `在庫キャッシュを使用しました (${inventoryMap.size}件)`);
     return inventoryMap;
   } catch (err) {
     console.warn("在庫キャッシュの読み込みに失敗:", err);
@@ -697,6 +807,7 @@ function clearInventoryCache(token) {
 
   try {
     localStorage.removeItem(getInventoryCacheKey(token));
+    addLocalLog("cache", "在庫キャッシュを無効化しました");
   } catch (err) {
     console.warn("在庫キャッシュの削除に失敗:", err);
   }
@@ -740,6 +851,7 @@ async function loadInventoryFromFirestore(token) {
   });
 
   writeInventoryCache(token, inventoryMap);
+  addLocalLog("load", `Firestore から在庫を読み込みました (${inventoryMap.size}件)`);
   return inventoryMap;
 }
 
@@ -996,6 +1108,10 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
     clearErrorMessage();
     if (conflictNames.length > 0) {
       clearInventoryCache(state.token);
+      addLocalLog(
+        "conflict",
+        `競合を検知しました: ${conflictNames.join("、")}`,
+      );
       setErrorMessage(buildConflictMessage(conflictNames));
       if (savedCount > 0) {
         setInfoMessage(
@@ -1013,6 +1129,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
     return true;
   } catch (err) {
     console.error("保存失敗:", err);
+    addLocalLog("error", "保存に失敗しました");
     clearAutoSaveTimer();
     state.autoSaveSuspended = true;
 

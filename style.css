@@ -611,6 +611,51 @@ textarea {
   overscroll-behavior: contain;
 }
 
+.modal-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.log-entry {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+.log-entry-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.log-entry-type {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--primary-deep);
+}
+
+.log-entry-time {
+  font-size: 11px;
+  color: var(--sub-soft);
+}
+
+.log-entry-message {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .review-group {
   display: grid;
   gap: 8px;

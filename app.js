@@ -361,7 +361,7 @@ function initCustomItemHints() {
       fieldId: "customEdition",
       ariaLabel: "版・準拠の入力ヒント",
       message:
-        "表紙（または背表紙）に版や準拠などの記載があれば入力してください。",
+        "表紙（または背表紙）に版や準拠などの記載があれば入力してください。<br>※教材名に版・準拠まで含めて入力した場合、こちらは入力不要です。",
     },
     {
       fieldId: "customPublisher",

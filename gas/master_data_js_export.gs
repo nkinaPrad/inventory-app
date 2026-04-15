@@ -8,7 +8,7 @@
  */
 
 const MASTER_JS_EXPORT_CONFIG = {
-  menuItemLabel: "📋マスタデータ出力",
+  menuItemLabel: "マスタデータ出力（JavaScript）",
   targetSheetName: "【教材マスタ】",
   outputFileName: "data.js",
   headerMap: {
@@ -24,20 +24,16 @@ const MASTER_JS_EXPORT_CONFIG = {
  * スプレッドシートを開いたときにメニューを追加します。
  */
 const INVENTORY_MENU_CONFIG = {
-  menuItemLabel: "✅棚卸結果出力",
+  menuItemLabel: "棚卸結果出力",
 };
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu("📂出力")
+    .createMenu("📝出力")
     .addItem(
       MASTER_JS_EXPORT_CONFIG.menuItemLabel,
       "exportMasterDataAsJsFile",
     )
-    .addToUi();
-
-  SpreadsheetApp.getUi()
-    .createMenu(INVENTORY_MENU_CONFIG.menuLabel)
     .addItem(
       INVENTORY_MENU_CONFIG.menuItemLabel,
       "exportInventoryToSchoolSheets",

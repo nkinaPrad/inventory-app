@@ -36,6 +36,7 @@ const LOCAL_LOG_LIMIT = 80;
 const LOCAL_LOG_STORAGE_KEY = "inventoryLocalLogs";
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
+const CARD_LONG_PRESS_MS = 450;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
 
 const INFO_MESSAGES = {
@@ -91,12 +92,19 @@ const state = {
   tokenDocData: null,
   customDialogMode: "create",
   editingCustomItemId: "",
+  copySourceItemId: "",
+  activeCopyPopoverItemId: "",
   deletedItemIds: new Set(),
   deletedItemMetaMap: Object.create(null),
 };
 
 let listTouchStartY = 0;
 let listTouchMoved = false;
+let longPressTimerId = 0;
+let longPressTriggered = false;
+let mousePressActive = false;
+let mousePressStartX = 0;
+let mousePressStartY = 0;
 let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
 
@@ -232,6 +240,11 @@ function initUI() {
   list?.addEventListener("touchstart", handleListTouchStart, { passive: true });
   list?.addEventListener("touchmove", handleListTouchMove, { passive: true });
   list?.addEventListener("touchend", handleListTouchEnd);
+  list?.addEventListener("touchcancel", handleListTouchCancel);
+  list?.addEventListener("mousedown", handleListMouseDown);
+  list?.addEventListener("mousemove", handleListMouseMove);
+  list?.addEventListener("mouseup", handleListMouseUp);
+  list?.addEventListener("mouseleave", handleListMouseLeave);
 
   sendBtn?.addEventListener("click", () => {
     if (!canEdit()) {
@@ -285,6 +298,9 @@ function initUI() {
     .getElementById("customQtyPlus")
     ?.addEventListener("click", () => changeCustomQty(1));
   document
+    .getElementById("customQtyInput")
+    ?.addEventListener("focus", selectInputValueOnFocus);
+  document
     .getElementById("customItemForm")
     ?.addEventListener("submit", handleCustomItemSubmit);
   document
@@ -296,6 +312,12 @@ function initUI() {
   document
     .getElementById("deleteCustomBtn")
     ?.addEventListener("click", handleDeleteCustomItem);
+  document
+    .getElementById("copyFromItemBtn")
+    ?.addEventListener("click", handleCopyFromItem);
+  document
+    .getElementById("backupInfoBtn")
+    ?.addEventListener("click", handleBackupInfoClick);
 
   document.getElementById("exportJsonBtn")?.addEventListener("click", () => {
     closeModal("toolMenuDialog");
@@ -322,6 +344,10 @@ function initUI() {
   attachDialogBackdropClose("inputtedItemsDialog");
   attachDialogBackdropClose("localLogsDialog");
   attachDialogBackdropClose("customItemDialog");
+
+  document.addEventListener("click", handleDocumentClickForCopyPopover);
+  window.addEventListener("resize", closeCopyPopover);
+  window.addEventListener("scroll", closeCopyPopover, true);
 }
 
 function initCustomItemHints() {
@@ -396,11 +422,31 @@ function initCustomItemHints() {
   });
 
   document.addEventListener("click", (event) => {
-    if (event.target.closest(".label-with-hint")) return;
+    if (
+      event.target.closest(".label-with-hint") ||
+      event.target.closest(".menu-group-hint")
+    ) {
+      return;
+    }
     document.querySelectorAll(".hint-trigger.is-open").forEach((button) => {
       button.classList.remove("is-open");
     });
   });
+}
+
+function handleBackupInfoClick(event) {
+  event.preventDefault();
+
+  const trigger = event.currentTarget;
+  if (!trigger) return;
+
+  document.querySelectorAll(".hint-trigger.is-open").forEach((button) => {
+    if (button !== trigger) {
+      button.classList.remove("is-open");
+    }
+  });
+
+  trigger.classList.toggle("is-open");
 }
 
 function syncInputOnlyToggleUI() {
@@ -1282,6 +1328,8 @@ function renderFilteredItems() {
   const container = document.getElementById("list");
   if (!container) return;
 
+  closeCopyPopover();
+
   if (state.filteredItems.length === 0) {
     const emptyText =
       state.activeCategoryFilter === "custom" && state.showOnlyInputted
@@ -1453,6 +1501,7 @@ function setReadOnlyMode(isReadOnly) {
   if (sendBtn) sendBtn.disabled = isReadOnly;
 
   const list = document.getElementById("list");
+  closeCopyPopover();
   if (isReadOnly) {
     list?.classList.add("readonly-mode");
   } else {
@@ -1533,17 +1582,43 @@ function handleListClick(e) {
   if (!item) return;
 
   if (item.isCustom) {
+    closeCopyPopover();
     openCustomItemDialogForEdit(item);
     return;
   }
 
+  closeCopyPopover();
   changeQty(id, 1);
 }
 
 function handleListTouchStart(e) {
   if (!e.touches || e.touches.length === 0) return;
+
+  const target = e.target;
+  if (
+    !target.closest(".item-main") ||
+    target.closest(".qty-box") ||
+    target.closest(".qty-input") ||
+    target.closest(".qty-btn")
+  ) {
+    clearLongPressState();
+    return;
+  }
+
+  const itemEl = target.closest(".item");
+  const id = itemEl?.dataset.id || "";
+  const item = id ? state.itemsById.get(id) : null;
+
   listTouchStartY = e.touches[0].clientY;
   listTouchMoved = false;
+  longPressTriggered = false;
+
+  if (!itemEl || !item || !canEdit()) {
+    clearLongPressTimer();
+    return;
+  }
+
+  startLongPress(itemEl, item);
 }
 
 function handleListTouchMove(e) {
@@ -1551,12 +1626,21 @@ function handleListTouchMove(e) {
   const currentY = e.touches[0].clientY;
   if (Math.abs(currentY - listTouchStartY) > CARD_TAP_MOVE_THRESHOLD_PX) {
     listTouchMoved = true;
+    clearLongPressTimer();
   }
 }
 
 function handleListTouchEnd(e) {
+  const wasLongPress = longPressTriggered;
+  clearLongPressTimer();
+  longPressTriggered = false;
+
+  if (wasLongPress) {
+    ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
+    return;
+  }
+
   if (listTouchMoved) return;
-  if (!canEdit()) return;
 
   const target = e.target;
 
@@ -1576,18 +1660,195 @@ function handleListTouchEnd(e) {
   if (!item) return;
 
   if (item.isCustom) {
+    closeCopyPopover();
+    if (!canEdit()) return;
     openCustomItemDialogForEdit(item);
     ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
     return;
   }
 
+  closeCopyPopover();
   changeQty(id, 1);
   ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
+}
+
+function handleListTouchCancel() {
+  clearLongPressState();
+}
+
+function handleListMouseDown(e) {
+  if (e.button !== 0) return;
+
+  const pressTarget = getPressableItemFromTarget(e.target);
+  if (!pressTarget || !canEdit()) {
+    clearMousePressState();
+    return;
+  }
+
+  mousePressActive = true;
+  mousePressStartX = e.clientX;
+  mousePressStartY = e.clientY;
+  longPressTriggered = false;
+  startLongPress(pressTarget.itemEl, pressTarget.item);
+}
+
+function handleListMouseMove(e) {
+  if (!mousePressActive) return;
+
+  const movedX = Math.abs(e.clientX - mousePressStartX);
+  const movedY = Math.abs(e.clientY - mousePressStartY);
+  if (
+    movedX > CARD_TAP_MOVE_THRESHOLD_PX ||
+    movedY > CARD_TAP_MOVE_THRESHOLD_PX
+  ) {
+    clearMousePressState();
+  }
+}
+
+function handleListMouseUp() {
+  if (!mousePressActive) return;
+
+  const wasLongPress = longPressTriggered;
+  clearMousePressState();
+
+  if (wasLongPress) {
+    ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
+  }
+}
+
+function handleListMouseLeave() {
+  clearMousePressState();
+}
+
+function startLongPress(itemEl, item) {
+  clearLongPressTimer();
+
+  longPressTimerId = window.setTimeout(() => {
+    longPressTriggered = true;
+    openCopyPopover(itemEl, item);
+  }, CARD_LONG_PRESS_MS);
+}
+
+function clearLongPressTimer() {
+  if (longPressTimerId) {
+    clearTimeout(longPressTimerId);
+    longPressTimerId = 0;
+  }
+}
+
+function clearLongPressState() {
+  clearLongPressTimer();
+  longPressTriggered = false;
+}
+
+function clearMousePressState() {
+  mousePressActive = false;
+  mousePressStartX = 0;
+  mousePressStartY = 0;
+  clearLongPressTimer();
+}
+
+function getPressableItemFromTarget(target) {
+  if (
+    !target ||
+    !target.closest(".item-main") ||
+    target.closest(".qty-box") ||
+    target.closest(".qty-input") ||
+    target.closest(".qty-btn")
+  ) {
+    return null;
+  }
+
+  const itemEl = target.closest(".item");
+  const id = itemEl?.dataset.id || "";
+  const item = id ? state.itemsById.get(id) : null;
+
+  if (!itemEl || !item) return null;
+  return { itemEl, item };
+}
+
+function handleDocumentClickForCopyPopover(e) {
+  const popover = document.getElementById("copyPopover");
+  if (!popover || popover.hidden) return;
+
+  if (e.target.closest("#copyPopover")) return;
+  if (e.target.closest(".item-main")) return;
+  closeCopyPopover();
+}
+
+function openCopyPopover(itemEl, item) {
+  const popover = document.getElementById("copyPopover");
+  if (!popover || !itemEl || !item) return;
+
+  state.activeCopyPopoverItemId = item.id;
+  state.copySourceItemId = item.id;
+  popover.hidden = false;
+  popover.setAttribute("aria-hidden", "false");
+
+  requestAnimationFrame(() => {
+    positionCopyPopover(itemEl, popover);
+  });
+}
+
+function positionCopyPopover(itemEl, popover) {
+  if (!itemEl || !popover || popover.hidden) return;
+
+  const anchorEl = itemEl.querySelector(".item-main") || itemEl;
+  const rect = anchorEl.getBoundingClientRect();
+  const margin = 12;
+  const popoverRect = popover.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  let left = rect.left + 8;
+  if (left + popoverRect.width > viewportWidth - margin) {
+    left = viewportWidth - popoverRect.width - margin;
+  }
+  left = Math.max(margin, left);
+
+  const needsAbove =
+    viewportHeight - rect.bottom < popoverRect.height + 12 &&
+    rect.top > popoverRect.height + 12;
+  let top = needsAbove ? rect.top - popoverRect.height - 6 : rect.bottom + 6;
+  top = Math.max(margin, top);
+  top = Math.min(top, viewportHeight - popoverRect.height - margin);
+
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+}
+
+function closeCopyPopover() {
+  const popover = document.getElementById("copyPopover");
+
+  state.activeCopyPopoverItemId = "";
+  state.copySourceItemId = "";
+
+  if (!popover) return;
+
+  popover.hidden = true;
+  popover.setAttribute("aria-hidden", "true");
+  popover.style.left = "";
+  popover.style.top = "";
+}
+
+function handleCopyFromItem() {
+  const item = state.itemsById.get(state.copySourceItemId);
+  closeCopyPopover();
+
+  if (!item || !canEdit()) return;
+  openCustomItemDialogForCreate(item);
 }
 
 function handleQtyInputFocusIn(e) {
   const input = e.target.closest(".qty-input");
   if (!input) return;
+
+  selectInputValueOnFocus({ target: input });
+}
+
+function selectInputValueOnFocus(e) {
+  const input = e?.target;
+  if (!input || typeof input.select !== "function") return;
 
   setTimeout(() => {
     try {
@@ -1899,17 +2160,19 @@ function fillCustomItemForm(item = null) {
   if (nameInput) nameInput.value = item?.name || "";
   if (publisherInput) publisherInput.value = item?.publisher || "";
   if (editionInput) editionInput.value = item?.edition || "";
-  if (qtyInput) qtyInput.value = String(item?.qty ?? 0);
+  if (qtyInput) qtyInput.value = "0";
 }
 
-function openCustomItemDialogForCreate() {
+function openCustomItemDialogForCreate(sourceItem = null) {
   setCustomDialogMode("create");
-  fillCustomItemForm(null);
+  state.copySourceItemId = sourceItem?.id || "";
+  fillCustomItemForm(sourceItem);
   openModal("customItemDialog");
 }
 
 function openCustomItemDialogForEdit(item) {
   if (!item?.isCustom || !canEdit()) return;
+  state.copySourceItemId = "";
   setCustomDialogMode("edit", item);
   fillCustomItemForm(item);
   openModal("customItemDialog");
@@ -2082,6 +2345,7 @@ function handleCustomItemSubmit(e) {
   const qtyInput = document.getElementById("customQtyInput");
   if (qtyInput) qtyInput.value = "0";
 
+  state.copySourceItemId = "";
   closeModal("customItemDialog");
   setCustomDialogMode("create");
 

@@ -81,6 +81,12 @@
       </section>
     </main>
 
+    <div id="copyPopover" class="copy-popover" hidden aria-hidden="true">
+      <button id="copyFromItemBtn" class="copy-popover-btn" type="button">
+        引用して追加
+      </button>
+    </div>
+
     <div class="bottom-bar">
       <div class="bottom-inner compact">
         <div class="summary-grid">
@@ -132,7 +138,32 @@
           CSV出力
         </button>
         <section class="menu-group" aria-labelledby="backupGroupTitle">
-          <h3 id="backupGroupTitle" class="menu-group-title">バックアップ</h3>
+          <div class="menu-group-head">
+            <h3 id="backupGroupTitle" class="menu-group-title">バックアップ</h3>
+            <div class="menu-group-hint">
+              <button
+                id="backupInfoBtn"
+                class="hint-trigger menu-hint-trigger"
+                type="button"
+                aria-label="バックアップの説明"
+                aria-describedby="backupInfoTooltip"
+              >
+                <img
+                  class="hint-icon"
+                  src="images/info.svg"
+                  alt=""
+                  aria-hidden="true"
+                />
+              </button>
+              <span
+                id="backupInfoTooltip"
+                class="hint-tooltip menu-hint-tooltip"
+                role="tooltip"
+              >
+                通信が不安定で入力内容をサーバーに保存できない場合は、入力内容を端末に保存し、後から復元できます。ただし、古い内容を復元した場合は、サーバーもその内容で更新されるためご注意ください。
+              </span>
+            </div>
+          </div>
           <div class="menu-row">
             <button id="exportJsonBtn" class="menu-item" type="button">
               保存
@@ -143,7 +174,7 @@
           </div>
         </section>
         <p class="menu-note">
-          ※通信エラー時は、バックアップ機能をご利用ください。入力内容をオフラインで保存し、あとで復元できます。
+          ※お困りの際はプラドアカデミー教務本部までお問い合わせください。
         </p>
       </div>
     </dialog>

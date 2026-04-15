@@ -171,7 +171,8 @@ textarea {
 .btn-main,
 .btn-ghost,
 .btn-success,
-.menu-item {
+.menu-item,
+.copy-popover-btn {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -186,6 +187,7 @@ textarea {
 .btn-ghost:focus-visible,
 .btn-success:focus-visible,
 .menu-item:focus-visible,
+.copy-popover-btn:focus-visible,
 .search-input:focus-visible,
 .input:focus-visible,
 .select:focus-visible,
@@ -878,6 +880,39 @@ textarea {
   pointer-events: none;
 }
 
+.copy-popover {
+  position: fixed;
+  z-index: 80;
+  min-width: 124px;
+  max-width: min(180px, calc(100vw - 28px));
+  padding: 4px;
+  border: 1px solid rgba(208, 213, 221, 0.85);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.copy-popover-btn {
+  width: 100%;
+  min-height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.copy-popover-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
 /* ====================================================================
    6. フッター（ボトムバー）
    ==================================================================== */
@@ -1092,11 +1127,23 @@ dialog::backdrop {
   border-radius: 16px;
 }
 
+.menu-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .menu-group-title {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
+}
+
+.menu-group-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .menu-item {
@@ -1199,9 +1246,7 @@ dialog::backdrop {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
-  padding: 0;
+  padding: 3px;
   border: 0;
   background: transparent;
   cursor: help;
@@ -1228,9 +1273,9 @@ dialog::backdrop {
 .hint-tooltip {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  left: calc(100% - 42px);
   z-index: 10;
-  width: min(280px, calc(100vw - 64px));
+  width: min(320px, calc(100vw - 52px));
   padding: 10px 12px;
   border: 1px solid #bfdbfe;
   border-radius: 12px;
@@ -1254,7 +1299,7 @@ dialog::backdrop {
   content: "";
   position: absolute;
   top: -7px;
-  left: 18px;
+  left: 24px;
   width: 12px;
   height: 12px;
   border-top: 1px solid #bfdbfe;
@@ -1269,6 +1314,14 @@ dialog::backdrop {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
+}
+
+.menu-hint-trigger {
+  margin: -5px 0 -2px -2px;
+}
+
+.menu-hint-tooltip {
+  width: min(336px, calc(100vw - 56px));
 }
 
 .input,

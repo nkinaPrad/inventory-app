@@ -2306,6 +2306,17 @@ function handleCustomItemSubmit(e) {
     return;
   }
 
+  const sourceItem = state.itemsById.get(state.copySourceItemId);
+  if (
+    state.customDialogMode === "create" &&
+    sourceItem &&
+    normalizeQuotedField(name) === normalizeQuotedField(sourceItem.name) &&
+    normalizeQuotedField(edition) === normalizeQuotedField(sourceItem.edition)
+  ) {
+    alert("教材名または版・準拠を変更してください。");
+    return;
+  }
+
   if (state.customDialogMode === "edit" && state.editingCustomItemId) {
     const target = state.itemsById.get(state.editingCustomItemId);
     if (!target) return;
@@ -2354,4 +2365,10 @@ function handleCustomItemSubmit(e) {
   applyFilterAndRender();
   updateStatsUI();
   scheduleAutoSave();
+}
+
+function normalizeQuotedField(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }

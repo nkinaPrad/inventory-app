@@ -36,6 +36,7 @@ const LOCAL_LOG_LIMIT = 80;
 const LOCAL_LOG_STORAGE_KEY = "inventoryLocalLogs";
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
+const CARD_QUICK_TAP_MAX_MS = 180;
 const CARD_LONG_PRESS_MS = 450;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
 
@@ -100,11 +101,15 @@ const state = {
 
 let listTouchStartY = 0;
 let listTouchMoved = false;
+let touchPressStartedAt = 0;
 let longPressTimerId = 0;
 let longPressTriggered = false;
 let mousePressActive = false;
 let mousePressStartX = 0;
 let mousePressStartY = 0;
+let mousePressStartedAt = 0;
+let lastMousePressItemId = "";
+let lastMousePressDurationMs = Number.POSITIVE_INFINITY;
 let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
 
@@ -1573,6 +1578,19 @@ function handleListClick(e) {
     return;
   }
 
+  const popover = document.getElementById("copyPopover");
+  if (
+    popover &&
+    !popover.hidden &&
+    !target.closest("#copyPopover") &&
+    target.closest(".item")
+  ) {
+    closeCopyPopover();
+    lastMousePressItemId = "";
+    lastMousePressDurationMs = Number.POSITIVE_INFINITY;
+    return;
+  }
+
   if (target.closest(".qty-btn")) {
     const itemEl = target.closest(".item");
     if (!itemEl) return;
@@ -1601,6 +1619,13 @@ function handleListClick(e) {
 
   const id = itemEl.dataset.id;
   if (!id) return;
+
+  const isQuickMouseTap =
+    lastMousePressItemId === id &&
+    lastMousePressDurationMs <= CARD_QUICK_TAP_MAX_MS;
+  lastMousePressItemId = "";
+  lastMousePressDurationMs = Number.POSITIVE_INFINITY;
+  if (!isQuickMouseTap) return;
 
   const item = state.itemsById.get(id);
   if (!item) return;
@@ -1635,6 +1660,7 @@ function handleListTouchStart(e) {
 
   listTouchStartY = e.touches[0].clientY;
   listTouchMoved = false;
+  touchPressStartedAt = Date.now();
   longPressTriggered = false;
 
   if (!itemEl || !item || !canEdit()) {
@@ -1656,6 +1682,10 @@ function handleListTouchMove(e) {
 
 function handleListTouchEnd(e) {
   const wasLongPress = longPressTriggered;
+  const touchDurationMs = touchPressStartedAt
+    ? Date.now() - touchPressStartedAt
+    : Number.POSITIVE_INFINITY;
+  touchPressStartedAt = 0;
   clearLongPressTimer();
   longPressTriggered = false;
 
@@ -1665,8 +1695,21 @@ function handleListTouchEnd(e) {
   }
 
   if (listTouchMoved) return;
+  if (touchDurationMs > CARD_QUICK_TAP_MAX_MS) return;
 
   const target = e.target;
+  const popover = document.getElementById("copyPopover");
+
+  if (
+    popover &&
+    !popover.hidden &&
+    !target.closest("#copyPopover") &&
+    target.closest(".item")
+  ) {
+    closeCopyPopover();
+    ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
+    return;
+  }
 
   if (!target.closest(".item-main")) return;
   if (target.id === "loadMoreBtn") return;
@@ -1697,6 +1740,7 @@ function handleListTouchEnd(e) {
 }
 
 function handleListTouchCancel() {
+  touchPressStartedAt = 0;
   clearLongPressState();
 }
 
@@ -1712,6 +1756,9 @@ function handleListMouseDown(e) {
   mousePressActive = true;
   mousePressStartX = e.clientX;
   mousePressStartY = e.clientY;
+  mousePressStartedAt = Date.now();
+  lastMousePressItemId = pressTarget.item.id;
+  lastMousePressDurationMs = Number.POSITIVE_INFINITY;
   longPressTriggered = false;
   startLongPress(pressTarget.itemEl, pressTarget.item);
 }
@@ -1733,6 +1780,9 @@ function handleListMouseUp() {
   if (!mousePressActive) return;
 
   const wasLongPress = longPressTriggered;
+  lastMousePressDurationMs = mousePressStartedAt
+    ? Date.now() - mousePressStartedAt
+    : Number.POSITIVE_INFINITY;
   clearMousePressState();
 
   if (wasLongPress) {
@@ -1769,6 +1819,7 @@ function clearMousePressState() {
   mousePressActive = false;
   mousePressStartX = 0;
   mousePressStartY = 0;
+  mousePressStartedAt = 0;
   clearLongPressTimer();
 }
 

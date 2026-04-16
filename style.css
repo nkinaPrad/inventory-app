@@ -541,6 +541,8 @@ textarea {
   min-width: 0;
   display: grid;
   gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .item-topline {

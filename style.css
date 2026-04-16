@@ -447,13 +447,18 @@ textarea {
   line-height: 1;
   white-space: nowrap;
   position: relative;
+  padding-left: 28px;
 }
 
 .input-only-toggle::before {
   content: "";
+  display: block;
   width: 24px;
   height: 24px;
-  flex: 0 0 24px;
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   background-image: url("./images/chk-box.svg");
   background-position: center;
   background-repeat: no-repeat;
@@ -472,10 +477,7 @@ textarea {
 }
 
 .input-only-toggle.active::before {
-  background-image: url("./images/chk-check.svg"), url("./images/chk-box.svg");
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-size: contain, contain;
+  background-image: url("./images/chk-check.svg");
 }
 
 .meta-panel.always-open {

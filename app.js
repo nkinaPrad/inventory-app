@@ -59,7 +59,7 @@ const ERROR_MESSAGES = {
   ACCESS_CHECK_FAILED: "アクセス確認に失敗しました。通信状態をご確認ください。",
   LOAD_FAILED: "データ取得に失敗しました。",
   SAVE_FAILED:
-    "保存に失敗しました。保存ボタンで再試行してください。通信状態が安定しない場合は、メニューの「ファイルに保存」をご利用ください。",
+    "保存に失敗しました。通信状態が安定しない場合は、ページのリロードはせず、メニューのバックアップ機能をご利用ください。",
   AUTO_SAVE_RETRY: "未保存の変更があります。保存ボタンで再試行してください。",
   SAVE_NOT_ALLOWED: "このURLでは保存できません。",
   ADD_CUSTOM_NOT_ALLOWED: "このURLでは未登録教材を追加できません。",
@@ -108,14 +108,39 @@ let mousePressStartY = 0;
 let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
 
+function isPrivateIpv4Host(hostname) {
+  if (!hostname) return false;
+
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  if (parts.some((part) => !/^\d+$/.test(part))) return false;
+
+  const octets = parts.map((part) => Number(part));
+  if (octets.some((octet) => octet < 0 || octet > 255)) return false;
+
+  return (
+    octets[0] === 10 ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] === 169 && octets[1] === 254)
+  );
+}
+
+function isLocalPreviewHost(hostname) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    isPrivateIpv4Host(hostname)
+  );
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(location.search);
   state.token = (params.get("token") || "").trim();
 
   state.isLocalPreview =
-    location.protocol === "file:" ||
-    location.hostname === "localhost" ||
-    location.hostname === "127.0.0.1";
+    location.protocol === "file:" || isLocalPreviewHost(location.hostname);
 
   initUI();
 
@@ -643,7 +668,6 @@ async function initAccessAndLoad() {
 
     const tokenData = tokenSnap.data() || {};
     state.tokenDocData = tokenData;
-
     state.roomKey = String(tokenData.roomKey || "")
       .trim()
       .toLowerCase();
@@ -1967,7 +1991,20 @@ function syncBodyScrollLock() {
   }
 }
 
-function exportJsonBackup() {
+function downloadBackupFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body?.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+async function exportJsonBackup() {
   const data = {
     token: state.token,
     room: state.roomKey,
@@ -1977,15 +2014,39 @@ function exportJsonBackup() {
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
+    type: "application/json;charset=utf-8",
   });
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `inventory_${state.roomKey || "unknown"}_${new Date().getTime()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const filename = `inventory_${state.roomKey || "unknown"}_${new Date().getTime()}.json`;
+
+  try {
+    if (navigator.share && typeof File === "function") {
+      const file = new File([blob], filename, { type: "application/json" });
+      const shareData = {
+        title: filename,
+        text: "inventory backup",
+        files: [file],
+      };
+
+      if (!navigator.canShare || navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        setInfoMessage("バックアップを共有シートに渡しました。");
+        return;
+      }
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      setInfoMessage("バックアップ共有をキャンセルしました。");
+      return;
+    }
+    console.warn(
+      "バックアップ共有に失敗したためファイル保存へ切り替えます:",
+      err,
+    );
+  }
+
+  downloadBackupFile(blob, filename);
+  setInfoMessage("バックアップファイルを保存しました。");
 }
 
 function exportCsv() {
@@ -2016,12 +2077,10 @@ function exportCsv() {
     type: "text/csv;charset=utf-8;",
   });
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `inventory_${state.roomKey || "unknown"}_${new Date().getTime()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBackupFile(
+    blob,
+    `inventory_${state.roomKey || "unknown"}_${new Date().getTime()}.csv`,
+  );
 
   setInfoMessage(`CSVを出力しました (${exportItems.length}件)`);
 }
@@ -2094,9 +2153,7 @@ async function importJsonBackup(e) {
       applyFilterAndRender();
       updateStatsUI();
       scheduleAutoSave();
-      alert(
-        "読み込みが完了しました。未保存の変更がある場合は保存してください。",
-      );
+      alert("読み込みが完了しました。");
     } catch (err) {
       alert("ファイルの読み込みに失敗しました: " + err.message);
     }

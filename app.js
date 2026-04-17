@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ====================================================================
  * 教材在庫管理システム - data.js マスタ利用版 (app.js)
  * ====================================================================
@@ -70,6 +70,8 @@ const state = {
   token: "",
   roomKey: "",
   roomLabel: "",
+  latestUpdatedAt: null,
+  completedAt: null,
   items: [],
   itemsById: new Map(),
   filteredItems: [],
@@ -77,6 +79,7 @@ const state = {
   showOnlyInputted: false,
   query: "",
   isSyncing: false,
+  isCompleting: false,
   totalQty: 0,
   dirtyCount: 0,
   originalSnapshotMap: Object.create(null),
@@ -287,6 +290,9 @@ function initUI() {
   document
     .getElementById("toolMenuBtn")
     ?.addEventListener("click", () => openModal("toolMenuDialog"));
+  document
+    .getElementById("completeInventoryBtn")
+    ?.addEventListener("click", () => void handleCompleteInventory());
   document
     .getElementById("closeToolMenuBtn")
     ?.addEventListener("click", () => closeModal("toolMenuDialog"));
@@ -632,15 +638,60 @@ function formatTimestamp(ts) {
   });
 }
 
+function isInventoryCompleted() {
+  return !!state.completedAt;
+}
+
+function getCompletionInfoMessage() {
+  const completedAtLabel = formatTimestamp(state.completedAt);
+  if (!completedAtLabel) {
+    return "本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。";
+  }
+
+  return `本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。 / 本部送信: ${completedAtLabel}`;
+}
+
+function updateInfoBanner(message = "") {
+  if (message) {
+    setInfoMessage(message, false);
+    return;
+  }
+
+  if (isInventoryCompleted()) {
+    setInfoMessage(getCompletionInfoMessage(), false);
+    return;
+  }
+
+  if (state.latestUpdatedAt) {
+    setInfoMessage(
+      `最終更新: ${formatTimestamp(state.latestUpdatedAt)}`,
+      false,
+    );
+    return;
+  }
+
+  setInfoMessage(INFO_MESSAGES.LOAD_DONE);
+}
+
 function setInfoMessage(message, withTimestamp = true) {
   const el = document.getElementById("infoMessage");
   if (!el) return;
+  if (isInventoryCompleted()) {
+    el.textContent = getCompletionInfoMessage();
+    return;
+  }
   el.textContent = withTimestamp ? `${message} (${formatNow()})` : message;
 }
 
 function setErrorMessage(message = "") {
   const el = document.getElementById("errorMessage");
   if (!el) return;
+
+  if (isInventoryCompleted()) {
+    el.textContent = "";
+    el.hidden = true;
+    return;
+  }
 
   if (!message) {
     el.textContent = "";
@@ -656,6 +707,43 @@ function clearErrorMessage() {
   setErrorMessage("");
 }
 
+function syncTokenState(tokenData = null) {
+  state.tokenDocData = tokenData;
+  state.completedAt = tokenData?.completedAt || null;
+  state.roomKey = String(tokenData?.roomKey || "")
+    .trim()
+    .toLowerCase();
+  state.roomLabel = String(
+    tokenData?.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "",
+  ).trim();
+}
+
+function syncCompletionUI() {
+  const completeBtn = document.getElementById("completeInventoryBtn");
+  const completeStatus = document.getElementById("completeInventoryStatus");
+  const sendBtn = document.getElementById("sendBtn");
+  const backupMenuGroup = document.getElementById("backupMenuGroup");
+
+  if (completeBtn) {
+    completeBtn.hidden = state.isLocalPreview
+      ? isInventoryCompleted()
+      : !state.token || !state.accessGranted || isInventoryCompleted();
+    completeBtn.disabled = state.isCompleting || state.isSyncing;
+  }
+
+  if (completeStatus) {
+    completeStatus.hidden = !isInventoryCompleted();
+  }
+
+  if (sendBtn) {
+    sendBtn.hidden = isInventoryCompleted();
+  }
+
+  if (backupMenuGroup) {
+    backupMenuGroup.hidden = isInventoryCompleted();
+  }
+}
+
 async function initAccessAndLoad() {
   try {
     clearErrorMessage();
@@ -668,6 +756,7 @@ async function initAccessAndLoad() {
 
     if (!tokenSnap.exists()) {
       setReadOnlyMode(true);
+      syncCompletionUI();
       setErrorMessage(ERROR_MESSAGES.INVALID_URL);
       renderEmptyMessage(ERROR_MESSAGES.INVALID_URL);
       updateStatsUI();
@@ -675,18 +764,13 @@ async function initAccessAndLoad() {
     }
 
     const tokenData = tokenSnap.data() || {};
-    state.tokenDocData = tokenData;
-    state.roomKey = String(tokenData.roomKey || "")
-      .trim()
-      .toLowerCase();
-    state.roomLabel = String(
-      tokenData.roomLabel || ROOM_LABEL_MAP[state.roomKey] || "",
-    ).trim();
+    syncTokenState(tokenData);
     updateRoomLabel();
 
     if (tokenData.enabled !== true) {
       setReadOnlyMode(true);
       state.accessGranted = false;
+      syncCompletionUI();
       setErrorMessage(ERROR_MESSAGES.DISABLED_URL);
       renderEmptyMessage(ERROR_MESSAGES.DISABLED_URL);
       updateStatsUI();
@@ -694,14 +778,16 @@ async function initAccessAndLoad() {
     }
 
     state.accessGranted = true;
-    setReadOnlyMode(false);
+    setReadOnlyMode(!canEdit());
     clearErrorMessage();
+    syncCompletionUI();
 
     await loadAppData();
   } catch (err) {
     console.error("アクセス確認失敗:", err);
     addLocalLog("error", "アクセス確認に失敗しました");
     setReadOnlyMode(true);
+    syncCompletionUI();
     setErrorMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
     renderEmptyMessage(ERROR_MESSAGES.ACCESS_CHECK_FAILED);
     updateStatsUI();
@@ -729,8 +815,8 @@ function updateRoomLabel() {
 }
 
 function canEdit() {
-  if (state.isLocalPreview) return true;
-  return !!(state.token && state.accessGranted);
+  if (state.isLocalPreview) return !isInventoryCompleted();
+  return !!(state.token && state.accessGranted && !isInventoryCompleted());
 }
 
 async function loadAppData() {
@@ -744,6 +830,7 @@ async function loadAppData() {
     ]);
 
     const latestUpdatedAt = getLatestUpdatedAt(inventoryMap);
+    state.latestUpdatedAt = latestUpdatedAt;
 
     buildStateFromSources(masterData, inventoryMap);
     generateCategoryChips();
@@ -751,11 +838,7 @@ async function loadAppData() {
     updateStatsUI();
     applyFilterAndRender();
 
-    if (latestUpdatedAt) {
-      setInfoMessage(`最終更新: ${formatTimestamp(latestUpdatedAt)}`, false);
-    } else {
-      setInfoMessage(INFO_MESSAGES.LOAD_DONE);
-    }
+    updateInfoBanner();
   } catch (err) {
     console.error(err);
     addLocalLog("error", "在庫データの読み込みに失敗しました");
@@ -1079,7 +1162,96 @@ function buildConflictMessage(conflictNames) {
   return `${conflictNames.length}件は他の端末で更新されていたため保存していません。 対象: ${names}`;
 }
 
-async function sendData({ silent = false, isManualRetry = false } = {}) {
+async function handleCompleteInventory() {
+  if (state.isSyncing || state.isCompleting || isInventoryCompleted()) {
+    return;
+  }
+
+  if (!state.isLocalPreview && (!state.token || !state.accessGranted)) {
+    return;
+  }
+
+  const confirmed = confirm(
+    "棚卸結果を本部に送信します。\n送信後は内容を編集できなくなります。よろしいですか？",
+  );
+  if (!confirmed) return;
+
+  if (state.isLocalPreview) {
+    state.completedAt = {
+      toDate() {
+        return new Date();
+      },
+    };
+    clearErrorMessage();
+    closeModal("toolMenuDialog");
+    setReadOnlyMode(true);
+    updateInfoBanner();
+    addLocalLog("info", "棚卸結果を本部に送信しました");
+    return;
+  }
+
+  if (state.dirtyCount > 0) {
+    const saved = await sendData({
+      silent: false,
+      isManualRetry: true,
+      requireClean: true,
+    });
+    if (!saved) {
+      setInfoMessage(
+        "保存処理で問題が発生したため、本部への送信を中止しました。",
+        false,
+      );
+      return;
+    }
+  }
+
+  state.isCompleting = true;
+  syncCompletionUI();
+  clearErrorMessage();
+  setInfoMessage("本部送信中...", false);
+
+  try {
+    const tokenRef = doc(db, "inventory", state.token);
+    await setDoc(
+      tokenRef,
+      {
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    const completedSnap = await getDoc(tokenRef);
+    if (completedSnap.exists()) {
+      syncTokenState(completedSnap.data() || {});
+      updateRoomLabel();
+    }
+
+    state.latestUpdatedAt = getLatestUpdatedAt(buildInventoryMapFromState());
+    clearAutoSaveTimer();
+    closeModal("toolMenuDialog");
+    setReadOnlyMode(true);
+    clearErrorMessage();
+    updateInfoBanner();
+    addLocalLog("info", "棚卸結果を本部に送信しました");
+  } catch (err) {
+    console.error("本部送信失敗:", err);
+    addLocalLog("error", "棚卸結果の本部送信に失敗しました");
+    setErrorMessage(
+      "棚卸結果の本部送信に失敗しました。通信状態を確認して再度お試しください。",
+    );
+  } finally {
+    state.isCompleting = false;
+    syncCompletionUI();
+    updateStatsUI();
+  }
+}
+
+async function sendData({
+  silent = false,
+  isManualRetry = false,
+  requireClean = false,
+} = {}) {
   if (state.isLocalPreview) {
     clearErrorMessage();
     setInfoMessage(
@@ -1112,6 +1284,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
   }
 
   state.isSyncing = true;
+  syncCompletionUI();
   updateStatsUI();
   clearErrorMessage();
   setInfoMessage(
@@ -1191,6 +1364,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
 
     recalcTotalQty();
     applyFilterAndRender();
+    state.latestUpdatedAt = getLatestUpdatedAt(buildInventoryMapFromState());
     state.autoSaveSuspended = false;
     state.hasShownRetryNotice = false;
     clearAutoSaveTimer();
@@ -1209,6 +1383,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
       } else {
         setInfoMessage("競合した教材の最新内容を反映しました。");
       }
+      return !requireClean;
     } else {
       writeInventoryCache(state.token, buildInventoryMapFromState());
       setInfoMessage(
@@ -1233,6 +1408,7 @@ async function sendData({ silent = false, isManualRetry = false } = {}) {
     return false;
   } finally {
     state.isSyncing = false;
+    syncCompletionUI();
     updateStatsUI();
   }
 }
@@ -1531,6 +1707,10 @@ function escapeHtml(str) {
 function setReadOnlyMode(isReadOnly) {
   const sendBtn = document.getElementById("sendBtn");
   if (sendBtn) sendBtn.disabled = isReadOnly;
+  const addCustomBtn = document.getElementById("toolMenuBtnAddCustom");
+  if (addCustomBtn) addCustomBtn.hidden = isReadOnly;
+  const inputOnlyToggle = document.getElementById("inputOnlyToggle");
+  if (inputOnlyToggle) inputOnlyToggle.hidden = isReadOnly;
 
   const list = document.getElementById("list");
   closeCopyPopover();
@@ -1539,6 +1719,8 @@ function setReadOnlyMode(isReadOnly) {
   } else {
     list?.classList.remove("readonly-mode");
   }
+
+  syncCompletionUI();
 }
 
 function recalcTotalQty() {

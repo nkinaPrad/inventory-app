@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function validTokenFormat(token) {
+      // token は文字列で、短すぎる値は弾く
+      return token is string && token.size() >= 24;
+    }
+
+    function validEnabledToken(token) {
+      return validTokenFormat(token)
+        // token 管理ドキュメントが存在していること
+        && exists(/databases/$(database)/documents/inventory/$(token))
+        // enabled=true の token だけを有効とみなす
+        && get(/databases/$(database)/documents/inventory/$(token)).data.enabled == true;
+    }
+
+    function validIncompleteEnabledToken(token) {
+      return validEnabledToken(token)
+        && (
+          !("completedAt" in get(/databases/$(database)/documents/inventory/$(token)).data)
+          || get(/databases/$(database)/documents/inventory/$(token)).data.completedAt == null
+        );
+    }
+
+    function validCompletionUpdate() {
+      return
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "completedAt",
+          "updatedAt"
+        ])
+        && (
+          !("completedAt" in resource.data)
+          || resource.data.completedAt == null
+        )
+        && ("completedAt" in request.resource.data)
+        && request.resource.data.completedAt is timestamp
+        && ("updatedAt" in request.resource.data)
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function isCustomId(itemId) {
+      // 未登録教材は custom_ で始まる ID のみ許可する
+      return itemId is string && itemId.matches('^custom_[A-Za-z0-9_-]+$');
+    }
+
+    function validItemData(itemId) {
+      return
+        // 保存できるキーを必要最小限に限定する
+        request.resource.data.keys().hasOnly([
+          "name", "publisher", "edition",
+          "qty", "isCustom", "updatedAt"
+        ])
+
+        // qty は 0 以上の整数のみ許可する
+        && request.resource.data.qty is int
+        && request.resource.data.qty >= 0
+
+        // isCustom は boolean のみ許可する
+        && request.resource.data.isCustom is bool
+
+        // updatedAt は timestamp のみ許可する
+        && request.resource.data.updatedAt is timestamp
+
+        // 任意項目が入る場合は文字列であることを確認する
+        && (!("name" in request.resource.data) || request.resource.data.name is string)
+        && (!("publisher" in request.resource.data) || request.resource.data.publisher is string)
+        && (!("edition" in request.resource.data) || request.resource.data.edition is string)
+
+        // 未登録教材 ID のときは isCustom=true かつ name 必須
+        && (
+          !isCustomId(itemId) ||
+          (
+            request.resource.data.isCustom == true
+            && ("name" in request.resource.data)
+            && request.resource.data.name.size() > 0
+          )
+        )
+
+        // 登録済み教材 ID のときは isCustom=false を必須にする
+        && (
+          isCustomId(itemId) ||
+          request.resource.data.isCustom == false
+        );
+    }
+
+    match /inventory/{token} {
+      // クライアントは token の存在確認を行うため read を許可する
+      allow read: if validTokenFormat(token);
+
+      // token 管理ドキュメントはクライアントから変更させない
+      allow update: if validEnabledToken(token)
+        && validCompletionUpdate();
+      allow create, delete: if false;
+    }
+
+    match /inventory/{token}/items/{itemId} {
+      // 在庫データの読み取りは有効な token のみ許可する
+      allow read: if validEnabledToken(token);
+
+      // 作成・更新は token が有効で、データ形式が正しい場合のみ許可する
+      allow create, update: if validIncompleteEnabledToken(token)
+        && validItemData(itemId);
+
+      // 削除は未登録教材のドキュメントに限定して許可する
+      allow delete: if validIncompleteEnabledToken(token)
+        && isCustomId(itemId)
+        && resource.data.isCustom == true;
+    }
+  }
+}

@@ -79,7 +79,12 @@
     </main>
 
     <div id="copyPopover" class="copy-popover" hidden aria-hidden="true">
-      <button id="editCustomItemBtn" class="copy-popover-btn" type="button" hidden>
+      <button
+        id="editCustomItemBtn"
+        class="copy-popover-btn"
+        type="button"
+        hidden
+      >
         編集
       </button>
       <button id="copyFromItemBtn" class="copy-popover-btn" type="button">
@@ -128,6 +133,17 @@
         </button>
       </div>
       <div class="menu-list">
+        <button
+          id="completeInventoryBtn"
+          class="menu-item menu-item-primary"
+          type="button"
+          hidden
+        >
+          棚卸結果を本部に送信する
+        </button>
+        <div id="completeInventoryStatus" class="menu-status" hidden>
+          本部への送信が完了しています
+        </div>
         <button id="viewInputtedListBtn" class="menu-item" type="button">
           入力内容を確認
         </button>
@@ -137,7 +153,11 @@
         <button id="exportCsvBtn" class="menu-item" type="button">
           CSV出力
         </button>
-        <section class="menu-group" aria-labelledby="backupGroupTitle">
+        <section
+          id="backupMenuGroup"
+          class="menu-group"
+          aria-labelledby="backupGroupTitle"
+        >
           <div class="menu-group-head">
             <h3 id="backupGroupTitle" class="menu-group-title">バックアップ</h3>
             <div class="menu-group-hint">

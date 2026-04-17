@@ -258,6 +258,7 @@ textarea {
   color: var(--sub-soft);
   font-weight: 500;
   min-height: 16px;
+  white-space: pre-line;
 }
 
 .error-message {
@@ -1191,6 +1192,35 @@ dialog::backdrop {
 
 .menu-item:hover {
   background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+}
+
+.menu-item.menu-item-primary {
+  border-color: #f3d08a;
+  background: #fff7e6;
+  color: #7c4a03;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.menu-item.menu-item-primary:hover {
+  background: #ffefc7;
+}
+
+.menu-status {
+  min-height: 44px;
+  display: grid;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid #d6dae1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475467;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.menu-status[hidden],
+[hidden] {
+  display: none !important;
 }
 
 .menu-item.muted {

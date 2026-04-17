@@ -1,0 +1,14 @@
+inventory/{token}
+  enabled: boolean
+  roomKey: string
+  roomLabel: string
+  updatedAt: timestamp
+  completedAt: timestamp | null
+
+inventory/{token}/items/{itemId}
+  name: string
+  publisher: string
+  edition: string
+  qty: number
+  isCustom: boolean
+  updatedAt: timestamp

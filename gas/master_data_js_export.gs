@@ -10,7 +10,7 @@ const MASTER_JS_EXPORT_CONFIG = {
     マスタ区分: "category",
     商品コード: "id",
     科目: "subject",
-    商品名: "name",
+    教材名: "name",
     出版社: "publisher",
   },
 };
@@ -27,9 +27,7 @@ function exportMasterDataAsJsFile() {
 
   if (!sheet) {
     ui.alert(
-      "シート「" +
-        MASTER_JS_EXPORT_CONFIG.targetSheetName +
-        "」が見つかりません。",
+      "シート「" + MASTER_JS_EXPORT_CONFIG.targetSheetName + "」が見つかりません。",
     );
     return;
   }

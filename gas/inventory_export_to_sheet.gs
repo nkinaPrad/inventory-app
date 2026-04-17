@@ -25,7 +25,7 @@ const INVENTORY_EXPORT_BY_SETTINGS_CONFIG = {
   },
   masterHeaders: {
     code: "商品コード",
-    name: "商品名",
+    name: "教材名",
     publisher: "出版社",
   },
 };
@@ -51,7 +51,11 @@ function exportInventoryToSchoolSheets(options) {
       resultSpreadsheet.getSheets()[0].setName(setting.sheetName);
     }
 
-    writeInventoryRowsToSchoolSheet_(resultSpreadsheet, setting.sheetName, rows);
+    writeInventoryRowsToSchoolSheet_(
+      resultSpreadsheet,
+      setting.sheetName,
+      rows,
+    );
   });
 
   writeInventoryCompletionStatusSheet_(resultSpreadsheet);
@@ -277,9 +281,7 @@ function readInventoryItemsByToken_(token) {
 
   return itemDocuments.map((itemDocument) => ({
     id: getLastPathSegmentForSettings_(itemDocument.name),
-    data: convertFirestoreFieldsToObjectForSettings_(
-      itemDocument.fields || {},
-    ),
+    data: convertFirestoreFieldsToObjectForSettings_(itemDocument.fields || {}),
   }));
 }
 
@@ -326,12 +328,7 @@ function writeInventoryRowsToSchoolSheet_(spreadsheet, sheetName, rows) {
 
   sheet.clearContents();
   sheet
-    .getRange(
-      1,
-      1,
-      1,
-      INVENTORY_EXPORT_BY_SETTINGS_CONFIG.outputHeaders.length,
-    )
+    .getRange(1, 1, 1, INVENTORY_EXPORT_BY_SETTINGS_CONFIG.outputHeaders.length)
     .setValues([INVENTORY_EXPORT_BY_SETTINGS_CONFIG.outputHeaders]);
 
   if (rows.length > 0) {
@@ -665,7 +662,9 @@ function getLastPathSegmentForSettings_(path) {
 }
 
 function getOrCreateSheetByName_(spreadsheet, sheetName) {
-  return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  return (
+    spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName)
+  );
 }
 
 /**

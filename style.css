@@ -888,7 +888,8 @@ textarea {
   position: fixed;
   z-index: 80;
   min-width: 124px;
-  max-width: min(180px, calc(100vw - 28px));
+  width: max-content;
+  max-width: calc(100vw - 28px);
   padding: 4px;
   border: 1px solid rgba(208, 213, 221, 0.85);
   border-radius: 14px;
@@ -900,8 +901,14 @@ textarea {
   -webkit-backdrop-filter: blur(12px);
 }
 
+.copy-popover.has-multiple-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
 .copy-popover-btn {
-  width: 100%;
+  width: auto;
   min-height: 36px;
   border: none;
   border-radius: 10px;
@@ -911,10 +918,31 @@ textarea {
   font-weight: 700;
   letter-spacing: 0.01em;
   cursor: pointer;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 
 .copy-popover-btn:hover {
   background: rgba(37, 99, 235, 0.08);
+}
+
+.copy-popover.has-multiple-actions .copy-popover-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.copy-popover.has-multiple-actions .copy-popover-btn + .copy-popover-btn {
+  position: relative;
+}
+
+.copy-popover.has-multiple-actions .copy-popover-btn + .copy-popover-btn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.65);
 }
 
 /* ====================================================================

@@ -346,6 +346,9 @@ function initUI() {
     .getElementById("copyFromItemBtn")
     ?.addEventListener("click", handleCopyFromItem);
   document
+    .getElementById("editCustomItemBtn")
+    ?.addEventListener("click", handleEditCustomItemFromPopover);
+  document
     .getElementById("backupInfoBtn")
     ?.addEventListener("click", handleBackupInfoClick);
 
@@ -1630,12 +1633,6 @@ function handleListClick(e) {
   const item = state.itemsById.get(id);
   if (!item) return;
 
-  if (item.isCustom) {
-    closeCopyPopover();
-    openCustomItemDialogForEdit(item);
-    return;
-  }
-
   closeCopyPopover();
   changeQty(id, 1);
 }
@@ -1725,14 +1722,6 @@ function handleListTouchEnd(e) {
 
   const item = state.itemsById.get(id);
   if (!item) return;
-
-  if (item.isCustom) {
-    closeCopyPopover();
-    if (!canEdit()) return;
-    openCustomItemDialogForEdit(item);
-    ignoreClickUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS;
-    return;
-  }
 
   closeCopyPopover();
   changeQty(id, 1);
@@ -1853,10 +1842,15 @@ function handleDocumentClickForCopyPopover(e) {
 
 function openCopyPopover(itemEl, item) {
   const popover = document.getElementById("copyPopover");
+  const editBtn = document.getElementById("editCustomItemBtn");
   if (!popover || !itemEl || !item) return;
 
   state.activeCopyPopoverItemId = item.id;
   state.copySourceItemId = item.id;
+  popover.classList.toggle("has-multiple-actions", Boolean(item.isCustom));
+  if (editBtn) {
+    editBtn.hidden = !item.isCustom;
+  }
   popover.hidden = false;
   popover.setAttribute("aria-hidden", "false");
 
@@ -1894,12 +1888,17 @@ function positionCopyPopover(itemEl, popover) {
 
 function closeCopyPopover() {
   const popover = document.getElementById("copyPopover");
+  const editBtn = document.getElementById("editCustomItemBtn");
 
   state.activeCopyPopoverItemId = "";
   state.copySourceItemId = "";
+  if (editBtn) {
+    editBtn.hidden = true;
+  }
 
   if (!popover) return;
 
+  popover.classList.remove("has-multiple-actions");
   popover.hidden = true;
   popover.setAttribute("aria-hidden", "true");
   popover.style.left = "";
@@ -1912,6 +1911,14 @@ function handleCopyFromItem() {
 
   if (!item || !canEdit()) return;
   openCustomItemDialogForCreate(item);
+}
+
+function handleEditCustomItemFromPopover() {
+  const item = state.itemsById.get(state.activeCopyPopoverItemId);
+  closeCopyPopover();
+
+  if (!item?.isCustom || !canEdit()) return;
+  openCustomItemDialogForEdit(item);
 }
 
 function handleQtyInputFocusIn(e) {

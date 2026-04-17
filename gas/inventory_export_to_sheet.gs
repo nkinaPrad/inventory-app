@@ -11,7 +11,7 @@
  */
 
 const INVENTORY_EXPORT_BY_SETTINGS_CONFIG = {
-  settingsSheetName: "【設定】",
+  settingsSheetName: "【校舎設定・棚卸状況】",
   masterSheetName: "【教材マスタ】",
   inventoryCollection: "inventory",
   includeDisabledRooms: true,
@@ -33,22 +33,19 @@ const INVENTORY_EXPORT_BY_SETTINGS_CONFIG = {
 /**
  * `【設定】` シートに定義されたすべての校舎シートへ在庫を出力します。
  */
-function exportInventoryToSchoolSheets() {
+function exportInventoryToSchoolSheets(options) {
   validateInventoryExportBySettingsConfig_();
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const settings = readExportSettingsRows_(spreadsheet);
-  const masterMap = readMasterDataByCode_(spreadsheet);
-  const timestamp = Utilities.formatDate(
-    new Date(),
-    Session.getScriptTimeZone(),
-    "yyyyMMdd_HHmmss",
+  const exportOptions = options || {};
+  const exportContext = buildInventoryExportContext_();
+  const resultSpreadsheet = createInventoryResultSpreadsheet_(
+    "",
+    exportOptions.fileNameSuffix || "",
   );
-  const resultSpreadsheet = SpreadsheetApp.create("棚卸結果_" + timestamp);
 
-  settings.forEach((setting, index) => {
+  exportContext.settings.forEach((setting, index) => {
     const inventory = readInventoryItemsByToken_(setting.token);
-    const rows = buildSchoolSheetRows_(inventory, masterMap);
+    const rows = buildSchoolSheetRows_(inventory, exportContext.masterMap);
 
     if (index === 0) {
       resultSpreadsheet.getSheets()[0].setName(setting.sheetName);
@@ -57,48 +54,75 @@ function exportInventoryToSchoolSheets() {
     writeInventoryRowsToSchoolSheet_(resultSpreadsheet, setting.sheetName, rows);
   });
 
-  moveSpreadsheetToResultFolder_(resultSpreadsheet.getId(), "棚卸結果");
-  SpreadsheetApp.getUi().alert(
-    "棚卸結果スプレッドシートを作成しました: 棚卸結果_" + timestamp,
-  );
+  writeInventoryCompletionStatusSheet_(resultSpreadsheet);
+  moveSpreadsheetToInventoryResultFolder_(resultSpreadsheet.getId());
+  if (!exportOptions.suppressAlert) {
+    SpreadsheetApp.getUi().alert(
+      "棚卸結果スプレッドシートを作成しました: " + resultSpreadsheet.getName(),
+    );
+  }
+
+  return resultSpreadsheet;
 }
 
 /**
  * 指定したドキュメントキー 1 件だけを出力します。
  */
-function exportSingleSchoolSheet(token) {
+function exportSingleSchoolSheet(token, options) {
   if (!token) {
     throw new Error("ドキュメントキーを指定してください。");
   }
 
   validateInventoryExportBySettingsConfig_();
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const settings = readExportSettingsRows_(spreadsheet);
-  const target = settings.find((row) => row.token === String(token).trim());
+  const exportOptions = options || {};
+  const exportContext = buildInventoryExportContext_();
+  const target = exportContext.settings.find(
+    (row) => row.token === String(token).trim(),
+  );
 
   if (!target) {
     throw new Error("【設定】シートに対象のドキュメントキーがありません。");
   }
 
-  const masterMap = readMasterDataByCode_(spreadsheet);
   const inventory = readInventoryItemsByToken_(target.token);
-  const rows = buildSchoolSheetRows_(inventory, masterMap);
+  const rows = buildSchoolSheetRows_(inventory, exportContext.masterMap);
+  const resultSpreadsheet = createInventoryResultSpreadsheet_(
+    target.sheetName,
+    exportOptions.fileNameSuffix || "",
+  );
+
+  resultSpreadsheet.getSheets()[0].setName(target.sheetName);
+  writeInventoryRowsToSchoolSheet_(resultSpreadsheet, target.sheetName, rows);
+  writeInventoryCompletionStatusSheet_(resultSpreadsheet);
+  moveSpreadsheetToInventoryResultFolder_(resultSpreadsheet.getId());
+
+  if (!exportOptions.suppressAlert) {
+    SpreadsheetApp.getUi().alert(
+      "棚卸結果スプレッドシートを作成しました: " + resultSpreadsheet.getName(),
+    );
+  }
+
+  return resultSpreadsheet;
+}
+
+function buildInventoryExportContext_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return {
+    spreadsheet: spreadsheet,
+    settings: readExportSettingsRows_(spreadsheet),
+    masterMap: readMasterDataByCode_(spreadsheet),
+  };
+}
+
+function createInventoryResultSpreadsheet_(sheetName, fileNameSuffix) {
   const timestamp = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone(),
     "yyyyMMdd_HHmmss",
   );
-  const resultSpreadsheet = SpreadsheetApp.create(
-    "棚卸結果_" + timestamp + "_" + target.sheetName,
-  );
-
-  resultSpreadsheet.getSheets()[0].setName(target.sheetName);
-  writeInventoryRowsToSchoolSheet_(resultSpreadsheet, target.sheetName, rows);
-  moveSpreadsheetToResultFolder_(resultSpreadsheet.getId(), "棚卸結果");
-
-  SpreadsheetApp.getUi().alert(
-    "棚卸結果スプレッドシートを作成しました: " + resultSpreadsheet.getName(),
+  return SpreadsheetApp.create(
+    buildInventoryResultFileName_(timestamp, sheetName, fileNameSuffix),
   );
 }
 
@@ -106,60 +130,69 @@ function exportSingleSchoolSheet(token) {
  * `【設定】` シートを読み取り、出力対象の一覧を返します。
  */
 function readExportSettingsRows_(spreadsheet) {
-  const sheet = spreadsheet.getSheetByName(
-    INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsSheetName,
-  );
-  if (!sheet) {
-    throw new Error("【設定】シートが見つかりません。");
-  }
-
+  const sheet = getInventorySettingsSheet_(spreadsheet);
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) {
-    throw new Error("【設定】シートにデータ行がありません。");
+    throw new Error("設定シートにデータ行がありません。");
   }
 
   const headerIndexMap = buildHeaderIndexMap_(values[0]);
   const settings = values
     .slice(1)
-    .filter((row) => row.some((cell) => String(cell).trim() !== ""))
-    .map((row) => {
-      const setting = {
-        roomKey: readCellByHeaderName_(
-          row,
-          headerIndexMap,
-          INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.roomKey,
-        ),
-        roomLabel: readCellByHeaderName_(
-          row,
-          headerIndexMap,
-          INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.roomLabel,
-        ),
-        sheetName: readCellByHeaderName_(
-          row,
-          headerIndexMap,
-          INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.sheetName,
-        ),
-        token: readCellByHeaderName_(
-          row,
-          headerIndexMap,
-          INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.token,
-        ),
-      };
-
-      if (!setting.sheetName || !setting.token) {
-        throw new Error(
-          "【設定】シートに未設定の行があります。出力先シート名とドキュメントキーは必須です。",
-        );
-      }
-
-      return setting;
-    });
+    .filter((row) => isNonEmptySheetRow_(row))
+    .map((row) => buildExportSettingRow_(row, headerIndexMap));
 
   if (settings.length === 0) {
-    throw new Error("【設定】シートに有効な設定行がありません。");
+    throw new Error("設定シートに有効な設定行がありません。");
   }
 
   return settings;
+}
+
+function getInventorySettingsSheet_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName(
+    INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsSheetName,
+  );
+  if (!sheet) {
+    throw new Error(
+      "シートが見つかりません: " +
+        INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsSheetName,
+    );
+  }
+  return sheet;
+}
+
+function buildExportSettingRow_(row, headerIndexMap) {
+  const setting = {
+    roomKey: readCellByHeaderName_(
+      row,
+      headerIndexMap,
+      INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.roomKey,
+    ),
+    roomLabel: readCellByHeaderName_(
+      row,
+      headerIndexMap,
+      INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.roomLabel,
+    ),
+    sheetName: readCellByHeaderName_(
+      row,
+      headerIndexMap,
+      INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.sheetName,
+    ),
+    token: readCellByHeaderName_(
+      row,
+      headerIndexMap,
+      INVENTORY_EXPORT_BY_SETTINGS_CONFIG.settingsHeaders.token,
+    ),
+  };
+
+  if (!setting.sheetName || !setting.token) {
+    throw new Error(
+      "設定シートに未設定の行があります。出力先シート名とドキュメントキーは必須です。",
+    );
+  }
+
+  return setting;
 }
 
 /**
@@ -183,7 +216,7 @@ function readMasterDataByCode_(spreadsheet) {
 
   values
     .slice(1)
-    .filter((row) => row.some((cell) => String(cell).trim() !== ""))
+    .filter((row) => isNonEmptySheetRow_(row))
     .forEach((row) => {
       const itemCode = normalizeSpreadsheetItemCode_(
         readCellByHeaderName_(
@@ -289,8 +322,7 @@ function buildSchoolSheetRows_(inventory, masterMap) {
  * 各校舎シートへヘッダ付きで上書き出力します。
  */
 function writeInventoryRowsToSchoolSheet_(spreadsheet, sheetName, rows) {
-  const sheet =
-    spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  const sheet = getOrCreateSheetByName_(spreadsheet, sheetName);
 
   sheet.clearContents();
   sheet
@@ -528,8 +560,12 @@ function readCellByHeaderName_(row, headerIndexMap, headerName) {
   return value == null ? "" : String(value).trim();
 }
 
+function isNonEmptySheetRow_(row) {
+  return row.some((cell) => String(cell).trim() !== "");
+}
+
 /**
- * 秘密鍵文字列内の "\n" を改行へ戻します。
+ * 秘密鍵文字列内の "\\n" を改行へ戻します。
  */
 function normalizePrivateKeyForSettings_(privateKey) {
   return String(privateKey || "").replace(/\\n/g, "\n");
@@ -628,34 +664,8 @@ function getLastPathSegmentForSettings_(path) {
   return parts[parts.length - 1] || "";
 }
 
-/**
- * 作成したスプレッドシートを、元スプレッドシートと同じ親フォルダ配下の指定フォルダへ移動します。
- */
-function moveSpreadsheetToResultFolder_(fileId, folderName) {
-  const sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sourceFile = DriveApp.getFileById(sourceSpreadsheet.getId());
-  const parentFolders = sourceFile.getParents();
-
-  if (!parentFolders.hasNext()) {
-    throw new Error("元スプレッドシートの親フォルダが見つかりません。");
-  }
-
-  const parentFolder = parentFolders.next();
-  const targetFolder = findOrCreateChildFolderForInventory_(
-    parentFolder,
-    folderName,
-  );
-  const targetFile = DriveApp.getFileById(fileId);
-
-  targetFolder.addFile(targetFile);
-
-  const parentIterator = targetFile.getParents();
-  while (parentIterator.hasNext()) {
-    const folder = parentIterator.next();
-    if (folder.getId() !== targetFolder.getId()) {
-      folder.removeFile(targetFile);
-    }
-  }
+function getOrCreateSheetByName_(spreadsheet, sheetName) {
+  return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
 }
 
 /**

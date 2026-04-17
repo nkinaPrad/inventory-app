@@ -1,65 +1,75 @@
 # GAS
 
-`gas` 配下には、現行版の保管用ファイルと、整理した利用用ファイルがあります。
+`gas` フォルダには、教材棚卸で使う Google Apps Script をまとめています。
+Firestore の棚卸データ出力、教材マスタの `data.js` 生成、棚卸状況の確認、棚卸データ初期化を扱います。
 
-## 利用用ファイル
+## ファイル構成
 
 - `inventory_export_to_sheet.gs`
-  Firestore の `inventory/{token}/items` を Google スプレッドシートへ出力します。
+  Firestore の `inventory/{token}/items` を校舎別シートとして出力します。
+- `inventory_completion_status.gs`
+  棚卸完了状況の取得・更新ロジックです。
+- `inventory_completion_status_dialog.html`
+  棚卸完了状況モーダルの UI です。
+- `inventory_management_sheet.gs`
+  棚卸期間と結果ファイル保存先年月の管理を行います。
+- `inventory_reset.gs`
+  棚卸データの初期化処理です。実行前に棚卸結果を自動出力します。
 - `master_data_js_export.gs`
-  スプレッドシート上の教材マスタを `data.js` 形式で Drive へ出力します。
+  `【教材マスタ】` シートから `data.js` を生成します。
+- `inventory_completion_status_modal.html`
+  旧モーダルファイルです。現在は `inventory_completion_status_dialog.html` を使用します。
 
-## 保管用ファイル
+## 必須設定
 
-- `firestore_to_sheets.gs`
-- `master_js_create.gs`
+Apps Script の Script Properties に次を設定します。
 
-## Firestore 出力の前提
+- `FIRESTORE_CLIENT_EMAIL`
+- `FIRESTORE_PRIVATE_KEY`
+- `FIRESTORE_PROJECT_ID`
 
-- Firestore を読めるサービスアカウントを用意する
-- Apps Script の `Script Properties` に以下を設定する
-  - `FIRESTORE_CLIENT_EMAIL`
-  - `FIRESTORE_PRIVATE_KEY`
-  - `FIRESTORE_PROJECT_ID`
-- `inventory_export_to_sheet.gs` の `INVENTORY_EXPORT_CONFIG.spreadsheetId` を設定する
+## 利用シート
 
-## Firestore 出力の使い方
-
-- 全 token を出力: `exportFirestoreInventoryToSheet()`
-- 1 token だけ出力: `exportSingleTokenToSheet("your-token")`
-
-## 設定シート運用版の使い方
-
-- 全校舎を出力: `exportInventoryToSchoolSheets()`
-- 1校舎だけ出力: `exportSingleSchoolSheet("ドキュメントキー")`
-- `【設定】` シートのヘッダ:
+- `【校舎設定・棚卸状況】`
   - `校舎キー（roomKey）`
   - `校舎名（roomLabel）`
   - `出力先シート名`
   - `ドキュメントキー`
-- `【教材マスタ】` シートの利用列:
-  - `商品コード`
-  - `商品名`
-  - `出版社`
+  - `棚卸URL`
+- `【教材マスタ】`
+  - 商品コード、商品名、出版社などを保持します。
+- `教材棚卸管理シート`
+  - `C2`: 年度
+  - `C3`: 棚卸開始日
+  - `C4`: 棚卸基準日
+  - `C5`: 棚卸締切日
 
-## Firestore 出力の補足
+## 主な実行関数
 
-- このスクリプトは Web 画面とは独立して動きます
-- Firestore REST API を使うため、フロントエンドの実装変更は不要です
-- `includeZeroQtyRows` や `tokenWhitelist` を変えると出力対象を調整できます
-- 標準教材は Firestore 側に `qty` などしか保存していないため、教材名や教科も出したい場合は `INVENTORY_MASTER_DATA_MAP` を埋めてください
+- `exportInventoryToSchoolSheets()`
+  全校舎分の棚卸結果を出力します。
+- `exportSingleSchoolSheet(token)`
+  指定 token の校舎だけ出力します。
+- `openInventoryCompletionStatusModal()`
+  棚卸完了状況モーダルを開きます。
+- `resetAllSchoolInventoryData()`
+  棚卸データを初期化します。
+- `exportMasterDataAsJsFile()`
+  `data.js` を生成します。
 
-## マスタ JS 出力の使い方
+## 補足
 
-- スプレッドシートを開くとメニューが追加されます
-- メニューの「データ出力」→「JSファイル出力」で `data.js` を更新します
-- 出力先フォルダ ID や対象シート名は `MASTER_JS_EXPORT_CONFIG` で変更できます
+- 棚卸結果は `棚卸結果/YYYY.MM` 配下へ保存します。
+- 棚卸期間中は `resetAllSchoolInventoryData()` を実行できません。
+- 初期化前には `クリア時自動出力` というサフィックス付きで棚卸結果を保存します。
 
+## 命名整理の提案
 
-## プロパティ
+今後さらに整理するなら、次のように寄せると目的が伝わりやすくなります。
 
-- 次のプロパティを設定済みです
+- `inventory_export_to_sheet.gs` → `inventory_export.gs`
+- `inventory_management_sheet.gs` → `inventory_management.gs`
+- `master_data_js_export.gs` → `master_data_export.gs`
+- `inventory_completion_status_modal.html` は削除候補
 
-- FIRESTORE_CLIENT_EMAIL
-- FIRESTORE_PRIVATE_KEY
-- FIRESTORE_PROJECT_ID
+今回は既存運用への影響を避けるため、実行中の関数名は大きく変えていません。

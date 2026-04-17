@@ -1709,8 +1709,6 @@ function setReadOnlyMode(isReadOnly) {
   if (sendBtn) sendBtn.disabled = isReadOnly;
   const addCustomBtn = document.getElementById("toolMenuBtnAddCustom");
   if (addCustomBtn) addCustomBtn.hidden = isReadOnly;
-  const inputOnlyToggle = document.getElementById("inputOnlyToggle");
-  if (inputOnlyToggle) inputOnlyToggle.hidden = isReadOnly;
 
   const list = document.getElementById("list");
   closeCopyPopover();

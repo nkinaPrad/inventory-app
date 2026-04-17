@@ -1,45 +1,19 @@
-/**
- * スプレッドシートの教材マスタを data.js 形式で Drive に出力します。
- *
- * 処理内容は従来版と同じで、次の流れです。
- * - メニューから実行
- * - 指定シートを読み取り
- * - 指定フォルダの data.js を更新、なければ新規作成
+﻿/**
+ * スプレッドシート上の教材マスタを `data.js` として Drive に出力します。
  */
 
 const MASTER_JS_EXPORT_CONFIG = {
-  menuItemLabel: "マスタデータ出力（JavaScript）",
   targetSheetName: "【教材マスタ】",
   outputFileName: "data.js",
+  outputFolderName: "教材データ",
   headerMap: {
-    "マスタ区分": "category",
-    "商品コード": "id",
-    "科目": "subject",
-    "商品名": "name",
-    "出版社": "publisher",
+    マスタ区分: "category",
+    商品コード: "id",
+    科目: "subject",
+    商品名: "name",
+    出版社: "publisher",
   },
 };
-
-/**
- * スプレッドシートを開いたときにメニューを追加します。
- */
-const INVENTORY_MENU_CONFIG = {
-  menuItemLabel: "棚卸結果出力",
-};
-
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu("📝出力")
-    .addItem(
-      MASTER_JS_EXPORT_CONFIG.menuItemLabel,
-      "exportMasterDataAsJsFile",
-    )
-    .addItem(
-      INVENTORY_MENU_CONFIG.menuItemLabel,
-      "exportInventoryToSchoolSheets",
-    )
-    .addToUi();
-}
 
 /**
  * シートの内容を `const MASTER_DATA = ...;` 形式の JS ファイルとして出力します。
@@ -60,7 +34,9 @@ function exportMasterDataAsJsFile() {
     return;
   }
 
-  const folder = getOrCreateSiblingFolderForMasterData_("教材データ");
+  const folder = getOrCreateSiblingFolderForMasterData_(
+    MASTER_JS_EXPORT_CONFIG.outputFolderName,
+  );
   const values = sheet.getDataRange().getValues();
 
   if (values.length < 2) {
@@ -77,13 +53,7 @@ function exportMasterDataAsJsFile() {
   const jsContent = buildMasterDataJsContent_(records);
 
   upsertDriveFile_(folder, MASTER_JS_EXPORT_CONFIG.outputFileName, jsContent);
-  return ui.alert("教材データ フォルダへ data.js を保存しました。");
   ui.alert("教材データ フォルダへ data.js を保存しました。");
-
-  ui.alert(
-    MASTER_JS_EXPORT_CONFIG.outputFileName +
-      " を出力しました。アプリ側で読み込み設定を確認してください。",
-  );
 }
 
 /**
@@ -93,8 +63,7 @@ function buildMasterDataRecord_(headers, row) {
   const record = {};
 
   headers.forEach((header, index) => {
-    const key =
-      MASTER_JS_EXPORT_CONFIG.headerMap[header] || header;
+    const key = MASTER_JS_EXPORT_CONFIG.headerMap[header] || header;
     let value = row[index];
 
     if (key === "id") {
@@ -108,7 +77,9 @@ function buildMasterDataRecord_(headers, row) {
 }
 
 function buildMasterDataJsContent_(records) {
-  const body = records.map((record) => formatMasterDataRecord_(record)).join(",\n");
+  const body = records
+    .map((record) => formatMasterDataRecord_(record))
+    .join(",\n");
   return "const MASTER_DATA = [\n" + body + "\n];";
 }
 
@@ -135,8 +106,8 @@ function escapeJsString_(text) {
 }
 
 /**
- * 商品コードを文字列として安定化します。
- * スプレッドシートで指数表記になった値も元の数字へ戻します。
+ * 商品コードを文字列として正規化します。
+ * スプレッドシートで指数表記になった値も元の整数へ戻します。
  */
 function normalizeItemId_(value) {
   const text = String(value);
@@ -165,8 +136,8 @@ function upsertDriveFile_(folder, fileName, content) {
 }
 
 /**
- * 元スプレッドシートと同じ親フォルダ配下の子フォルダを返します。
- * フォルダがなければ作成します。
+ * 元スプレッドシートと同じ親フォルダ配下の指定フォルダを取得します。
+ * フォルダがなければ新規作成します。
  */
 function getOrCreateSiblingFolderForMasterData_(folderName) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();

@@ -2479,7 +2479,12 @@ function fillCustomItemForm(item = null) {
   if (nameInput) nameInput.value = item?.name || "";
   if (publisherInput) publisherInput.value = item?.publisher || "";
   if (editionInput) editionInput.value = item?.edition || "";
-  if (qtyInput) qtyInput.value = "0";
+  if (qtyInput) {
+    qtyInput.value =
+      state.customDialogMode === "edit" && item
+        ? String(Number(item.qty) || 0)
+        : "0";
+  }
 }
 
 function openCustomItemDialogForCreate(sourceItem = null) {

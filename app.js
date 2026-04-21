@@ -202,6 +202,7 @@ function initUI() {
   const roomLabelEl = document.getElementById("roomLabel");
   const sendBtn = document.getElementById("sendBtn");
   const searchInput = document.getElementById("searchInput");
+  const searchClearBtn = document.getElementById("searchClearBtn");
   const filterArea = document.getElementById("filterArea");
   const inputOnlyToggle = document.getElementById("inputOnlyToggle");
   const list = document.getElementById("list");
@@ -240,6 +241,20 @@ function initUI() {
     }, SEARCH_DEBOUNCE_MS),
   );
 
+  searchInput?.addEventListener("input", () => {
+    syncSearchClearButton();
+  });
+
+  searchClearBtn?.addEventListener("click", () => {
+    if (!searchInput) return;
+    searchInput.value = "";
+    state.query = "";
+    state.visibleCount = INITIAL_VISIBLE_COUNT;
+    syncSearchClearButton();
+    applyFilterAndRender();
+    searchInput.focus();
+  });
+
   filterArea?.addEventListener("click", (e) => {
     const chip = e.target.closest(".f-chip[data-filter]");
     if (!chip) return;
@@ -264,6 +279,7 @@ function initUI() {
   });
 
   syncInputOnlyToggleUI();
+  syncSearchClearButton();
 
   list?.addEventListener("click", handleListClick);
   list?.addEventListener("change", handleQtyInputCommit);
@@ -503,6 +519,14 @@ function syncInputOnlyToggleUI() {
   toggle.title = "入力済みのみを切り替え";
   toggle.textContent = "入力済みのみ";
   toggle.disabled = false;
+}
+
+function syncSearchClearButton() {
+  const searchInput = document.getElementById("searchInput");
+  const clearBtn = document.getElementById("searchClearBtn");
+  if (!searchInput || !clearBtn) return;
+
+  clearBtn.hidden = String(searchInput.value || "").length === 0;
 }
 
 function formatNow() {

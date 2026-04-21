@@ -41,13 +41,24 @@
 
           <div class="search-wrap">
             <div class="search-main-row">
-              <input
-                id="searchInput"
-                class="search-input"
-                type="search"
-                placeholder="教材名・出版社で検索..."
-                autocomplete="off"
-              />
+              <div class="search-field">
+                <input
+                  id="searchInput"
+                  class="search-input"
+                  type="search"
+                  placeholder="教材名・出版社で検索..."
+                  autocomplete="off"
+                />
+                <button
+                  id="searchClearBtn"
+                  class="search-clear-btn"
+                  type="button"
+                  aria-label="検索文字列をクリア"
+                  hidden
+                >
+                  ×
+                </button>
+              </div>
               <button
                 id="inputOnlyToggle"
                 class="input-only-toggle"

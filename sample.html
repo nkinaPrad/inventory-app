@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow, noarchive" />
-    <title>プラドアカデミー教材棚卸</title>
+    <title>教材在庫管理 サンプル</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -12,8 +12,8 @@
       <div class="top-panel-inner">
         <div class="head-main">
           <div class="title-wrap">
-            <h1 class="title">教材棚卸</h1>
-            <div id="roomLabel" class="room-badge"></div>
+            <h1 class="title">教材在庫管理</h1>
+            <div id="roomLabel" class="room-badge">サンプル</div>
           </div>
 
           <div class="head-actions">
@@ -22,21 +22,24 @@
               class="btn-subtle btn-subtle-add"
               type="button"
             >
-              ＋ 未登録教材を追加
+              未登録教材を追加
             </button>
             <button
               id="toolMenuBtn"
               class="btn-subtle btn-subtle-other"
               type="button"
+              aria-label="メニューを開く"
             >
-              …
+              ...
             </button>
           </div>
         </div>
 
         <div class="toolbar-card">
-          <div class="access-bar" id="accessBar">
-            <div id="infoMessage" class="info-message"></div>
+          <div class="access-bar">
+            <div id="infoMessage" class="info-message">
+              サンプルページです。Firestoreを含め、外部とは通信しません。
+            </div>
             <div id="errorMessage" class="error-message" hidden></div>
           </div>
 
@@ -54,10 +57,10 @@
                   id="searchClearBtn"
                   class="search-clear-btn"
                   type="button"
-                  aria-label="検索文字列をクリア"
+                  aria-label="検索文字をクリア"
                   hidden
                 >
-                  ×
+                  x
                 </button>
               </div>
               <button
@@ -90,27 +93,13 @@
       </section>
     </main>
 
-    <div id="copyPopover" class="copy-popover" hidden aria-hidden="true">
-      <button
-        id="editCustomItemBtn"
-        class="copy-popover-btn"
-        type="button"
-        hidden
-      >
-        編集
-      </button>
-      <button id="copyFromItemBtn" class="copy-popover-btn" type="button">
-        引用して未登録教材を追加
-      </button>
-    </div>
-
     <div class="bottom-bar">
       <div class="bottom-inner compact">
         <div class="summary-grid">
           <div class="summary-item">
-            <span class="summary-label">合計部数</span>
+            <span class="summary-label">合計冊数</span>
             <span id="totalQty" class="summary-value num">0</span>
-            <span class="summary-unit">部</span>
+            <span class="summary-unit">冊</span>
           </div>
           <div class="summary-item summary-item-status">
             <span id="dirtyCount" class="summary-label"></span>
@@ -125,13 +114,6 @@
       </div>
     </div>
 
-    <input
-      id="importFileInput"
-      type="file"
-      accept=".json,application/json"
-      hidden
-    />
-
     <dialog id="toolMenuDialog" class="menu-dialog">
       <div class="modal-head">
         <h2 class="modal-title">メニュー</h2>
@@ -141,7 +123,7 @@
           type="button"
           aria-label="閉じる"
         >
-          ×
+          x
         </button>
       </div>
       <div class="menu-list">
@@ -149,52 +131,18 @@
           id="completeInventoryBtn"
           class="menu-item menu-item-primary"
           type="button"
-          hidden
         >
           棚卸結果を本部に送信する
         </button>
-        <div id="completeInventoryStatus" class="menu-status" hidden>
-          本部への送信が完了しています
-        </div>
         <button id="viewInputtedListBtn" class="menu-item" type="button">
           入力内容を確認
-        </button>
-        <button id="viewLocalLogsBtn" class="menu-item" type="button">
-          ログを見る
         </button>
         <button id="exportCsvBtn" class="menu-item" type="button">
           CSV出力
         </button>
-        <section
-          id="backupMenuGroup"
-          class="menu-group"
-          aria-labelledby="backupGroupTitle"
-        >
+        <section class="menu-group" aria-labelledby="backupGroupTitle">
           <div class="menu-group-head">
             <h3 id="backupGroupTitle" class="menu-group-title">バックアップ</h3>
-            <div class="menu-group-hint">
-              <button
-                id="backupInfoBtn"
-                class="hint-trigger menu-hint-trigger"
-                type="button"
-                aria-label="バックアップの説明"
-                aria-describedby="backupInfoTooltip"
-              >
-                <img
-                  class="hint-icon"
-                  src="images/info.svg"
-                  alt=""
-                  aria-hidden="true"
-                />
-              </button>
-              <span
-                id="backupInfoTooltip"
-                class="hint-tooltip menu-hint-tooltip"
-                role="tooltip"
-              >
-                通信が不安定で入力内容をサーバーに保存できない場合は、入力内容を端末に保存しておくと、後から取り込みできます。
-              </span>
-            </div>
           </div>
           <div class="menu-row">
             <button id="exportJsonBtn" class="menu-item" type="button">
@@ -206,7 +154,7 @@
           </div>
         </section>
         <p class="menu-note">
-          ※お困りの際はプラドアカデミー教務本部までお問い合わせください。
+          サンプルページのため、保存・送信・出力・取込は実行されません。
         </p>
       </div>
     </dialog>
@@ -220,7 +168,7 @@
           type="button"
           aria-label="閉じる"
         >
-          ×
+          x
         </button>
       </div>
       <div class="modal-body">
@@ -229,38 +177,16 @@
       </div>
     </dialog>
 
-    <dialog id="localLogsDialog" class="menu-dialog review-dialog">
-      <div class="modal-head">
-        <h2 class="modal-title">ローカルログ</h2>
-        <button
-          id="closeLocalLogsBtn"
-          class="dialog-close-btn"
-          type="button"
-          aria-label="閉じる"
-        >
-          ×
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-inline-actions">
-          <button id="clearLocalLogsBtn" class="btn-ghost" type="button">
-            ログを消去
-          </button>
-        </div>
-        <div id="localLogsList" class="review-list"></div>
-      </div>
-    </dialog>
-
     <dialog id="customItemDialog">
       <div class="modal-head">
-        <h2 class="modal-title">未登録教材を追加</h2>
+        <h2 id="customDialogTitle" class="modal-title">未登録教材を追加</h2>
         <button
           id="closeCustomDialogBtn"
           class="dialog-close-btn"
           type="button"
           aria-label="閉じる"
         >
-          ×
+          x
         </button>
       </div>
 
@@ -268,25 +194,25 @@
         <div class="modal-body">
           <div class="form-grid">
             <div class="form-row">
-              <label for="customName"
-                >教材名 <span style="color: #dc2626">*</span></label
-              >
+              <label for="customName">
+                教材名 <span style="color: #dc2626">*</span>
+              </label>
               <input
                 id="customName"
                 class="input"
                 type="text"
-                placeholder="例：サンプル問題集 社会 中3 / よくわかる高校数学"
+                placeholder="例: サンプル教材"
                 required
               />
             </div>
 
             <div class="form-row">
-              <label for="customEdition">版・準拠</label>
+              <label for="customEdition">版・備考</label>
               <input
                 id="customEdition"
                 class="input"
                 type="text"
-                placeholder="例：改訂版 / 20XX年度版 / 東書 など"
+                placeholder="例: 2026年度版"
               />
             </div>
 
@@ -296,7 +222,7 @@
                 id="customPublisher"
                 class="input"
                 type="text"
-                placeholder="例：○○出版 （基本的には記入不要です）"
+                placeholder="例: サンプル出版"
               />
             </div>
 
@@ -309,7 +235,7 @@
                   class="qty-btn minus"
                   aria-label="減らす"
                 >
-                  −
+                  -
                 </button>
                 <input
                   id="customQtyInput"
@@ -328,7 +254,7 @@
                   class="qty-btn plus"
                   aria-label="増やす"
                 >
-                  ＋
+                  +
                 </button>
               </div>
             </div>
@@ -355,6 +281,6 @@
     </dialog>
 
     <script src="data.js"></script>
-    <script type="module" src="app.js"></script>
+    <script src="sample-app.js"></script>
   </body>
 </html>

@@ -1483,8 +1483,13 @@ dialog::backdrop {
     justify-content: stretch;
   }
 
-  .head-actions .btn-subtle {
+  .head-actions .btn-subtle-add {
     flex: 1 1 auto;
+  }
+
+  .head-actions .btn-subtle-other {
+    flex: 0 0 44px;
+    width: 44px;
   }
 
   .filter-layout {

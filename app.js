@@ -41,8 +41,6 @@ const CARD_LONG_PRESS_MS = 450;
 const SYNTHETIC_CLICK_GUARD_MS = 500;
 
 const INFO_MESSAGES = {
-  LOCAL_PREVIEW: "ローカル確認用です。Firestore保存は行いません。",
-  LOCAL_PREVIEW_NO_TOKEN: "ローカル確認用です。保存は行いません。",
   LOADING: "データ同期中...",
   LOAD_DONE: "同期完了",
   NO_CHANGES: "変更はありません。",
@@ -55,7 +53,6 @@ const INFO_MESSAGES = {
 
 const ERROR_MESSAGES = {
   INVALID_URL: "URLが無効です。",
-  TOKEN_MISSING: "URLが無効です。token がありません。",
   DISABLED_URL: "このURLは現在無効です。",
   ACCESS_CHECK_FAILED: "アクセス確認に失敗しました。通信状態をご確認ください。",
   LOAD_FAILED: "データ取得に失敗しました。",
@@ -89,7 +86,6 @@ const state = {
   autoSaveMaxTimerId: null,
   autoSaveSuspended: false,
   hasShownRetryNotice: false,
-  isLocalPreview: false,
   accessReady: false,
   accessGranted: false,
   tokenDocExists: false,
@@ -117,85 +113,20 @@ let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
 let activeSavePromise = null;
 
-function isPrivateIpv4Host(hostname) {
-  if (!hostname) return false;
-
-  const parts = hostname.split(".");
-  if (parts.length !== 4) return false;
-  if (parts.some((part) => !/^\d+$/.test(part))) return false;
-
-  const octets = parts.map((part) => Number(part));
-  if (octets.some((octet) => octet < 0 || octet > 255)) return false;
-
-  return (
-    octets[0] === 10 ||
-    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-    (octets[0] === 192 && octets[1] === 168) ||
-    (octets[0] === 169 && octets[1] === 254)
-  );
-}
-
-function isLocalPreviewHost(hostname) {
-  return (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "::1" ||
-    isPrivateIpv4Host(hostname)
-  );
+function redirectToInvalidUrl() {
+  location.replace("./invalid-url.html");
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(location.search);
   state.token = (params.get("token") || "").trim();
 
-  state.isLocalPreview =
-    location.protocol === "file:" || isLocalPreviewHost(location.hostname);
+  if (!state.token) {
+    redirectToInvalidUrl();
+    return;
+  }
 
   initUI();
-
-  if (!state.token) {
-    const fallbackMasterData = getFallbackMasterData();
-    buildStateFromSources(fallbackMasterData, new Map());
-    generateCategoryChips();
-    syncInputOnlyToggleUI();
-    applyFilterAndRender();
-    updateStatsUI();
-
-    if (state.isLocalPreview) {
-      setInfoMessage(
-        "ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。",
-        false,
-      );
-      clearErrorMessage();
-      setReadOnlyMode(false);
-    } else {
-      setInfoMessage(ERROR_MESSAGES.TOKEN_MISSING);
-      setErrorMessage(ERROR_MESSAGES.INVALID_URL);
-      setReadOnlyMode(true);
-    }
-    return;
-  }
-
-  if (state.isLocalPreview) {
-    state.roomLabel = "ローカル確認用";
-    updateRoomLabel();
-
-    const fallbackMasterData = getFallbackMasterData();
-    buildStateFromSources(fallbackMasterData, new Map());
-    generateCategoryChips();
-    syncInputOnlyToggleUI();
-    applyFilterAndRender();
-    updateStatsUI();
-
-    setInfoMessage(
-      "ローカル確認モードです。見た目と操作感を確認できます。Firestore保存は行いません。",
-      false,
-    );
-    clearErrorMessage();
-    setReadOnlyMode(false);
-    return;
-  }
-
   await initAccessAndLoad();
 });
 
@@ -211,8 +142,6 @@ function initUI() {
   if (roomLabelEl) {
     if (state.roomLabel) {
       roomLabelEl.textContent = state.roomLabel;
-    } else if (state.isLocalPreview) {
-      roomLabelEl.textContent = "ローカル確認用";
     } else {
       roomLabelEl.textContent = "確認中";
       roomLabelEl.classList.add("muted");
@@ -760,9 +689,7 @@ async function initAccessAndLoad() {
     if (!tokenSnap.exists()) {
       setReadOnlyMode(true);
       syncCompletionUI();
-      setErrorMessage(ERROR_MESSAGES.INVALID_URL);
-      renderEmptyMessage(ERROR_MESSAGES.INVALID_URL);
-      updateStatsUI();
+      redirectToInvalidUrl();
       return;
     }
 
@@ -826,7 +753,6 @@ function updatePageTitle() {
 }
 
 function canEdit() {
-  if (state.isLocalPreview) return !isInventoryCompleted();
   return !!(state.token && state.accessGranted && !isInventoryCompleted());
 }
 
@@ -1178,7 +1104,7 @@ async function handleCompleteInventory() {
     return;
   }
 
-  if (!state.isLocalPreview && (!state.token || !state.accessGranted)) {
+  if (!state.token || !state.accessGranted) {
     return;
   }
 
@@ -1186,20 +1112,6 @@ async function handleCompleteInventory() {
     "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。",
   );
   if (!confirmed) return;
-
-  if (state.isLocalPreview) {
-    state.completedAt = {
-      toDate() {
-        return new Date();
-      },
-    };
-    clearErrorMessage();
-    closeModal("toolMenuDialog");
-    setReadOnlyMode(true);
-    updateInfoBanner();
-    addLocalLog("info", "棚卸結果を本部に送信しました");
-    return;
-  }
 
   if (state.isSyncing && activeSavePromise) {
     setInfoMessage("保存完了を待っています...", false);
@@ -1290,18 +1202,6 @@ async function performSendData({
   isManualRetry = false,
   requireClean = false,
 } = {}) {
-  if (state.isLocalPreview) {
-    clearErrorMessage();
-    setInfoMessage(
-      silent
-        ? "ローカル確認モードです。保存送信は行いません。"
-        : "ローカル確認モードです。Firestore保存は行いません。",
-      false,
-    );
-    clearAutoSaveTimer();
-    return true;
-  }
-
   if (!state.token || !canEdit()) return false;
 
   const dirtyItems = state.items.filter(
@@ -1782,10 +1682,6 @@ function updateFooterActions() {
   const saveStatusEl = document.querySelector(".save-status");
   const bottomActions = document.querySelector(".bottom-actions");
   const sendBtn = document.getElementById("sendBtn");
-  const completeBtn = document.getElementById("completeInventoryBtn");
-  const canShowComplete = state.isLocalPreview
-    ? !isInventoryCompleted()
-    : !!state.token && state.accessGranted && !isInventoryCompleted();
   const hasDirty = state.dirtyCount > 0;
   const isBusy = state.isSyncing || state.isCompleting;
 
@@ -1819,10 +1715,6 @@ function updateFooterActions() {
     sendBtn.textContent = "保存";
     sendBtn.classList.toggle("dirty", hasDirty);
     sendBtn.disabled = !hasDirty || isBusy || !canEdit();
-  }
-
-  if (completeBtn) {
-    completeBtn.disabled = !canShowComplete || state.isCompleting;
   }
 }
 

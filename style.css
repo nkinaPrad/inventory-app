@@ -95,7 +95,7 @@ textarea {
 .shell {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 12px 18px 24px;
+  padding: 10px 18px 24px;
 }
 
 .top-panel {
@@ -111,7 +111,7 @@ textarea {
 .top-panel-inner {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 10px 18px;
+  padding: 8px 18px;
 }
 
 .head-main {
@@ -119,7 +119,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .title-wrap {
@@ -132,7 +132,7 @@ textarea {
 .title {
   min-width: 0;
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: 0.02em;
@@ -204,8 +204,8 @@ textarea {
 }
 
 .btn-subtle {
-  height: 38px;
-  padding: 0 12px;
+  height: 36px;
+  padding: 0 11px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: #fff;
@@ -226,7 +226,7 @@ textarea {
   background: var(--custom-soft);
   border-color: var(--custom);
   color: var(--custom);
-  padding: 0 16px;
+  padding: 0 14px;
   box-shadow: 0 4px 12px rgba(47, 143, 87, 0.1);
 }
 
@@ -249,14 +249,14 @@ textarea {
   border: 1px solid rgba(229, 231, 235, 0.95);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  padding: 10px;
+  padding: 8px;
 }
 
 .access-bar {
   display: grid;
   gap: 6px;
-  padding-bottom: 4px;
-  margin-bottom: 6px;
+  padding-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .info-message {
@@ -264,7 +264,7 @@ textarea {
   line-height: 1.4;
   color: var(--sub-soft);
   font-weight: 500;
-  min-height: 16px;
+  min-height: 14px;
   white-space: pre-line;
 }
 
@@ -281,13 +281,13 @@ textarea {
 
 .search-wrap {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .search-main-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -298,7 +298,7 @@ textarea {
 
 .search-input {
   width: 100%;
-  height: 42px;
+  height: 40px;
   border: 1px solid var(--line-2);
   border-radius: 12px;
   padding: 0 42px 0 14px;
@@ -351,6 +351,34 @@ textarea {
 
 .filter-layout {
   min-width: 0;
+  position: relative;
+}
+
+.filter-layout::before,
+.filter-layout::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.filter-layout::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+}
+
+.filter-layout::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+}
+
+.filter-layout.has-filter-overflow-left::before,
+.filter-layout.has-filter-overflow-right::after {
+  opacity: 1;
 }
 
 .filter-group-wrap {
@@ -371,7 +399,7 @@ textarea {
 .filter-scroll {
   display: flex;
   gap: 8px;
-  padding: 0;
+  padding: 1px 0;
   overflow-x: auto;
   scrollbar-width: none;
   align-items: center;
@@ -386,7 +414,7 @@ textarea {
   display: flex;
   align-items: center;
   min-width: fit-content;
-  padding: 5px;
+  padding: 4px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.88);
@@ -415,7 +443,7 @@ textarea {
   background: #fff;
   color: #475467;
   border-radius: 999px;
-  padding: 7px 12px;
+  padding: 6px 11px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -534,7 +562,7 @@ textarea {
    5. 教材リスト・アイテム
    ==================================================================== */
 .list-wrap {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 #list {
@@ -1025,9 +1053,7 @@ textarea {
 }
 
 .bottom-inner.is-completed {
-  background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%);
-  border-color: #fdba74;
-  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.12);
+  grid-template-columns: 1fr;
 }
 
 .save-status {
@@ -1050,20 +1076,6 @@ textarea {
 
 .save-status[data-state="saved"] .save-status-dot {
   background: #16a34a;
-}
-
-.save-status[data-state="completed"] .save-status-dot {
-  background: #16a34a;
-}
-
-.save-status.is-completed {
-  min-height: 52px;
-  padding: 6px 4px;
-  align-items: flex-start;
-}
-
-.save-status.is-completed .save-status-dot {
-  display: none;
 }
 
 .save-status[data-state="dirty"] .save-status-dot {
@@ -1090,14 +1102,37 @@ textarea {
   text-overflow: ellipsis;
 }
 
-.save-status.is-completed .summary-label {
-  color: #9a3412;
+.completion-notice {
+  width: 100%;
+}
+
+.completion-notice[hidden] {
+  display: none;
+}
+
+.completion-notice-inner {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #fdba74;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fffaf2 0%, #fffdf7 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.completion-notice-title {
   font-size: 13px;
+  line-height: 1.45;
+  color: #9a3412;
   font-weight: 700;
+}
+
+.completion-notice-meta {
+  font-size: 11px;
   line-height: 1.5;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
+  color: #b45309;
 }
 
 .bottom-actions {
@@ -1560,11 +1595,11 @@ dialog::backdrop {
   }
 
   .shell {
-    padding: 12px 12px 24px;
+    padding: 10px 12px 24px;
   }
 
   .top-panel-inner {
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
 
   .head-main {
@@ -1592,7 +1627,7 @@ dialog::backdrop {
   }
 
   .filter-section {
-    padding: 5px;
+    padding: 4px;
   }
 
   .search-main-row {

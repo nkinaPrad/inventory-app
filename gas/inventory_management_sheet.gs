@@ -1,5 +1,5 @@
 ﻿const INVENTORY_MANAGEMENT_SHEET_CONFIG = {
-  sheetName: "教材棚卸管理シート",
+  sheetName: "教材棚卸管理",
   cells: {
     year: "C2",
     startDate: "C3",

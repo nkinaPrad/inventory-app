@@ -190,6 +190,10 @@ function initUI() {
     applyFilterAndRender();
   });
 
+  filterArea?.addEventListener("scroll", syncFilterOverflowHint, {
+    passive: true,
+  });
+
   inputOnlyToggle?.addEventListener("click", () => {
     state.showOnlyInputted = !state.showOnlyInputted;
     state.visibleCount = INITIAL_VISIBLE_COUNT;
@@ -320,7 +324,10 @@ function initUI() {
   attachDialogBackdropClose("customItemDialog");
 
   document.addEventListener("click", handleDocumentClickForCopyPopover);
-  window.addEventListener("resize", closeCopyPopover);
+  window.addEventListener("resize", () => {
+    closeCopyPopover();
+    syncFilterOverflowHint();
+  });
   window.addEventListener("scroll", closeCopyPopover, true);
 }
 
@@ -592,8 +599,13 @@ function getCompletionInfoMessage() {
   return `本部送信: ${completedAtLabel}`;
 }
 
-function getCompletionFooterMessage() {
-  return "本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。";
+function getCompletionFooterMeta() {
+  const completedAtLabel = formatTimestamp(state.completedAt);
+  if (!completedAtLabel) {
+    return "再編集を希望する場合、教務本部までご連絡ください。";
+  }
+
+  return `送信日時: ${completedAtLabel} / 再編集を希望する場合、教務本部までご連絡ください。`;
 }
 
 function updateInfoBanner(message = "") {
@@ -1440,6 +1452,31 @@ function generateCategoryChips() {
   `;
 
   container.innerHTML = html;
+  requestAnimationFrame(() => {
+    syncFilterOverflowHint();
+  });
+}
+
+function syncFilterOverflowHint() {
+  const filterArea = document.getElementById("filterArea");
+  const filterLayout = document.querySelector(".filter-layout");
+  if (!filterArea || !filterLayout) return;
+
+  const maxScrollLeft = Math.max(
+    0,
+    filterArea.scrollWidth - filterArea.clientWidth,
+  );
+  const hasOverflow = maxScrollLeft > 4;
+  const hasLeftOverflow = hasOverflow && filterArea.scrollLeft > 4;
+  const hasRightOverflow =
+    hasOverflow && filterArea.scrollLeft < maxScrollLeft - 4;
+
+  filterLayout.classList.toggle("has-filter-overflow", hasOverflow);
+  filterLayout.classList.toggle("has-filter-overflow-left", hasLeftOverflow);
+  filterLayout.classList.toggle(
+    "has-filter-overflow-right",
+    hasRightOverflow,
+  );
 }
 
 function applyFilterAndRender() {
@@ -1684,17 +1721,28 @@ function updateFooterActions() {
   const saveStatusEl = document.querySelector(".save-status");
   const bottomInner = document.querySelector(".bottom-inner");
   const bottomActions = document.querySelector(".bottom-actions");
+  const completionNotice = document.getElementById("completionNotice");
+  const completionNoticeMeta = document.getElementById("completionNoticeMeta");
   const sendBtn = document.getElementById("sendBtn");
   const hasDirty = state.dirtyCount > 0;
   const isBusy = state.isSyncing || state.isCompleting;
   const isCompleted = isInventoryCompleted();
 
-  saveStatusEl?.classList.toggle("is-completed", isCompleted);
   bottomInner?.classList.toggle("is-completed", isCompleted);
+  saveStatusEl?.toggleAttribute("hidden", isCompleted);
+
+  if (completionNotice) {
+    completionNotice.hidden = !isCompleted;
+  }
+
+  if (completionNoticeMeta) {
+    completionNoticeMeta.textContent = isCompleted
+      ? getCompletionFooterMeta()
+      : "";
+  }
 
   if (dirtyCountEl && saveStatusEl) {
     if (isCompleted) {
-      dirtyCountEl.textContent = getCompletionFooterMessage();
       saveStatusEl.dataset.state = "completed";
     } else if (state.isCompleting) {
       dirtyCountEl.textContent = "本部へ送信中…";

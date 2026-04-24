@@ -115,6 +115,7 @@ let lastMousePressItemId = "";
 let lastMousePressDurationMs = Number.POSITIVE_INFINITY;
 let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
+let activeSavePromise = null;
 
 function isPrivateIpv4Host(hostname) {
   if (!hostname) return false;
@@ -732,15 +733,8 @@ function syncTokenState(tokenData = null) {
 }
 
 function syncCompletionUI() {
-  const completeBtn = document.getElementById("completeInventoryBtn");
-  const completionCta = document.getElementById("completionCta");
   const completeStatus = document.getElementById("completeInventoryStatus");
-  const sendBtn = document.getElementById("sendBtn");
   const backupMenuGroup = document.getElementById("backupMenuGroup");
-
-  if (completeBtn) {
-    completeBtn.disabled = state.isCompleting || state.isSyncing;
-  }
 
   if (completeStatus) {
     completeStatus.hidden = true;
@@ -1180,7 +1174,7 @@ function buildConflictMessage(conflictNames) {
 }
 
 async function handleCompleteInventory() {
-  if (state.isSyncing || state.isCompleting || isInventoryCompleted()) {
+  if (state.isCompleting || isInventoryCompleted()) {
     return;
   }
 
@@ -1205,6 +1199,18 @@ async function handleCompleteInventory() {
     updateInfoBanner();
     addLocalLog("info", "棚卸結果を本部に送信しました");
     return;
+  }
+
+  if (state.isSyncing && activeSavePromise) {
+    setInfoMessage("保存完了を待っています...", false);
+    const currentSaveSucceeded = await activeSavePromise;
+    if (!currentSaveSucceeded && state.dirtyCount === 0) {
+      setInfoMessage(
+        "保存処理で問題が発生したため、本部への送信を中止しました。",
+        false,
+      );
+      return;
+    }
   }
 
   if (state.dirtyCount > 0) {
@@ -1264,7 +1270,22 @@ async function handleCompleteInventory() {
   }
 }
 
-async function sendData({
+function sendData(options = {}) {
+  if (state.isSyncing) {
+    return activeSavePromise || Promise.resolve(false);
+  }
+
+  const savePromise = performSendData(options);
+  const trackedSavePromise = savePromise.finally(() => {
+    if (activeSavePromise === trackedSavePromise) {
+      activeSavePromise = null;
+    }
+  });
+  activeSavePromise = trackedSavePromise;
+  return trackedSavePromise;
+}
+
+async function performSendData({
   silent = false,
   isManualRetry = false,
   requireClean = false,
@@ -1281,7 +1302,7 @@ async function sendData({
     return true;
   }
 
-  if (!state.token || state.isSyncing || !canEdit()) return false;
+  if (!state.token || !canEdit()) return false;
 
   const dirtyItems = state.items.filter(
     (item) => snapshotKey(item) !== state.originalSnapshotMap[item.id],
@@ -1801,7 +1822,7 @@ function updateFooterActions() {
   }
 
   if (completeBtn) {
-    completeBtn.disabled = !canShowComplete || isBusy;
+    completeBtn.disabled = !canShowComplete || state.isCompleting;
   }
 }
 

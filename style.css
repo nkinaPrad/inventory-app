@@ -1024,6 +1024,12 @@ textarea {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.bottom-inner.is-completed {
+  background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%);
+  border-color: #fdba74;
+  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.12);
+}
+
 .save-status {
   min-height: 36px;
   display: flex;
@@ -1050,6 +1056,16 @@ textarea {
   background: #16a34a;
 }
 
+.save-status.is-completed {
+  min-height: 52px;
+  padding: 6px 4px;
+  align-items: flex-start;
+}
+
+.save-status.is-completed .save-status-dot {
+  display: none;
+}
+
 .save-status[data-state="dirty"] .save-status-dot {
   background: #2563eb;
 }
@@ -1072,6 +1088,16 @@ textarea {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.save-status.is-completed .summary-label {
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .bottom-actions {

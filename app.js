@@ -587,11 +587,13 @@ function isInventoryCompleted() {
 
 function getCompletionInfoMessage() {
   const completedAtLabel = formatTimestamp(state.completedAt);
-  if (!completedAtLabel) {
-    return "本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。";
-  }
+  if (!completedAtLabel) return "本部送信済み";
 
-  return `本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。 / 本部送信: ${completedAtLabel}`;
+  return `本部送信: ${completedAtLabel}`;
+}
+
+function getCompletionFooterMessage() {
+  return "本部への送信が完了しています。再編集を希望する場合、教務本部までご連絡ください。";
 }
 
 function updateInfoBanner(message = "") {
@@ -1109,7 +1111,7 @@ async function handleCompleteInventory() {
   }
 
   const confirmed = confirm(
-    "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。",
+    "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。\n\n※未保存の変更がある場合は、保存後に本部へ送信されます。",
   );
   if (!confirmed) return;
 
@@ -1680,14 +1682,19 @@ function updateStatsUI() {
 function updateFooterActions() {
   const dirtyCountEl = document.getElementById("dirtyCount");
   const saveStatusEl = document.querySelector(".save-status");
+  const bottomInner = document.querySelector(".bottom-inner");
   const bottomActions = document.querySelector(".bottom-actions");
   const sendBtn = document.getElementById("sendBtn");
   const hasDirty = state.dirtyCount > 0;
   const isBusy = state.isSyncing || state.isCompleting;
+  const isCompleted = isInventoryCompleted();
+
+  saveStatusEl?.classList.toggle("is-completed", isCompleted);
+  bottomInner?.classList.toggle("is-completed", isCompleted);
 
   if (dirtyCountEl && saveStatusEl) {
-    if (isInventoryCompleted()) {
-      dirtyCountEl.textContent = "本部送信完了";
+    if (isCompleted) {
+      dirtyCountEl.textContent = getCompletionFooterMessage();
       saveStatusEl.dataset.state = "completed";
     } else if (state.isCompleting) {
       dirtyCountEl.textContent = "本部へ送信中…";

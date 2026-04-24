@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow, noarchive" />
-    <title>プラドアカデミー教材棚卸</title>
+    <title>教材棚卸</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -12,8 +12,9 @@
       <div class="top-panel-inner">
         <div class="head-main">
           <div class="title-wrap">
-            <h1 class="title">教材棚卸</h1>
-            <div id="roomLabel" class="room-badge"></div>
+            <h1 class="title">
+              <span>教材棚卸</span><span id="roomLabel" class="title-room"></span>
+            </h1>
           </div>
 
           <div class="head-actions">
@@ -106,20 +107,22 @@
 
     <div class="bottom-bar">
       <div class="bottom-inner compact">
-        <div class="summary-grid">
-          <div class="summary-item">
-            <span class="summary-label">合計部数</span>
-            <span id="totalQty" class="summary-value num">0</span>
-            <span class="summary-unit">部</span>
-          </div>
-          <div class="summary-item summary-item-status">
-            <span id="dirtyCount" class="summary-label"></span>
-          </div>
+        <div class="save-status">
+          <span class="save-status-dot" aria-hidden="true"></span>
+          <span id="dirtyCount" class="summary-label">保存済み</span>
         </div>
 
         <div class="bottom-actions">
           <button id="sendBtn" class="btn-main" disabled type="button">
-            保存する
+            保存
+          </button>
+          <button
+            id="completeInventoryBtn"
+            class="btn-complete"
+            type="button"
+            disabled
+          >
+            棚卸完了
           </button>
         </div>
       </div>
@@ -145,14 +148,6 @@
         </button>
       </div>
       <div class="menu-list">
-        <button
-          id="completeInventoryBtn"
-          class="menu-item menu-item-primary"
-          type="button"
-          hidden
-        >
-          棚卸結果を本部に送信する
-        </button>
         <div id="completeInventoryStatus" class="menu-status" hidden>
           本部への送信が完了しています
         </div>

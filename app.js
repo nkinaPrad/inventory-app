@@ -206,29 +206,18 @@ function initUI() {
   const filterArea = document.getElementById("filterArea");
   const inputOnlyToggle = document.getElementById("inputOnlyToggle");
   const list = document.getElementById("list");
-  const dirtyCountEl = document.getElementById("dirtyCount");
-  const bottomActions = document.querySelector(".bottom-actions");
-
-  if (dirtyCountEl && bottomActions) {
-    const dirtyCountWrap = dirtyCountEl.parentElement;
-    dirtyCountEl.classList.add("bottom-status");
-    bottomActions.insertBefore(dirtyCountEl, sendBtn || null);
-    if (dirtyCountWrap && dirtyCountWrap.childElementCount === 0) {
-      dirtyCountWrap.remove();
-    }
-  }
 
   if (roomLabelEl) {
     if (state.roomLabel) {
       roomLabelEl.textContent = state.roomLabel;
     } else if (state.isLocalPreview) {
       roomLabelEl.textContent = "ローカル確認用";
-      roomLabelEl.classList.add("muted");
     } else {
       roomLabelEl.textContent = "確認中";
       roomLabelEl.classList.add("muted");
     }
   }
+  updatePageTitle();
 
   searchInput?.addEventListener(
     "input",
@@ -744,24 +733,20 @@ function syncTokenState(tokenData = null) {
 
 function syncCompletionUI() {
   const completeBtn = document.getElementById("completeInventoryBtn");
+  const completionCta = document.getElementById("completionCta");
   const completeStatus = document.getElementById("completeInventoryStatus");
   const sendBtn = document.getElementById("sendBtn");
   const backupMenuGroup = document.getElementById("backupMenuGroup");
 
   if (completeBtn) {
-    completeBtn.hidden = state.isLocalPreview
-      ? isInventoryCompleted()
-      : !state.token || !state.accessGranted || isInventoryCompleted();
     completeBtn.disabled = state.isCompleting || state.isSyncing;
   }
 
   if (completeStatus) {
-    completeStatus.hidden = !isInventoryCompleted();
+    completeStatus.hidden = true;
   }
 
-  if (sendBtn) {
-    sendBtn.hidden = isInventoryCompleted();
-  }
+  updateFooterActions();
 
   if (backupMenuGroup) {
     backupMenuGroup.hidden = isInventoryCompleted();
@@ -826,16 +811,24 @@ function updateRoomLabel() {
 
   if (state.roomLabel) {
     roomLabelEl.textContent = state.roomLabel;
+    updatePageTitle();
     return;
   }
 
   if (state.roomKey) {
     roomLabelEl.textContent = ROOM_LABEL_MAP[state.roomKey] || state.roomKey;
+    updatePageTitle();
     return;
   }
 
   roomLabelEl.textContent = "未設定";
   roomLabelEl.classList.add("muted");
+  updatePageTitle();
+}
+
+function updatePageTitle() {
+  const roomLabel = document.getElementById("roomLabel")?.textContent.trim();
+  document.title = roomLabel ? `教材棚卸（${roomLabel}）` : "教材棚卸";
 }
 
 function canEdit() {
@@ -1196,7 +1189,7 @@ async function handleCompleteInventory() {
   }
 
   const confirmed = confirm(
-    "棚卸結果を本部に送信します。\n送信後は内容を編集できなくなります。よろしいですか？",
+    "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。",
   );
   if (!confirmed) return;
 
@@ -1757,18 +1750,58 @@ function updateStatsUI() {
   recalcTotalQty();
 
   const totalQtyEl = document.getElementById("totalQty");
-  const dirtyCountEl = document.getElementById("dirtyCount");
-  const sendBtn = document.getElementById("sendBtn");
 
   if (totalQtyEl) totalQtyEl.textContent = state.totalQty;
 
-  if (dirtyCountEl) {
-    dirtyCountEl.textContent =
-      state.dirtyCount > 0 ? `(未保存: ${state.dirtyCount})` : "";
+  updateFooterActions();
+}
+
+function updateFooterActions() {
+  const dirtyCountEl = document.getElementById("dirtyCount");
+  const saveStatusEl = document.querySelector(".save-status");
+  const bottomActions = document.querySelector(".bottom-actions");
+  const sendBtn = document.getElementById("sendBtn");
+  const completeBtn = document.getElementById("completeInventoryBtn");
+  const canShowComplete = state.isLocalPreview
+    ? !isInventoryCompleted()
+    : !!state.token && state.accessGranted && !isInventoryCompleted();
+  const hasDirty = state.dirtyCount > 0;
+  const isBusy = state.isSyncing || state.isCompleting;
+
+  if (dirtyCountEl && saveStatusEl) {
+    if (isInventoryCompleted()) {
+      dirtyCountEl.textContent = "本部送信完了";
+      saveStatusEl.dataset.state = "completed";
+    } else if (state.isCompleting) {
+      dirtyCountEl.textContent = "本部へ送信中…";
+      saveStatusEl.dataset.state = "sending";
+    } else if (state.isSyncing) {
+      dirtyCountEl.textContent = "保存中…";
+      saveStatusEl.dataset.state = "saving";
+    } else if (state.autoSaveSuspended) {
+      dirtyCountEl.textContent = "保存失敗";
+      saveStatusEl.dataset.state = "error";
+    } else if (hasDirty) {
+      dirtyCountEl.textContent = "未保存の変更あり";
+      saveStatusEl.dataset.state = "dirty";
+    } else {
+      dirtyCountEl.textContent = "保存済み";
+      saveStatusEl.dataset.state = "saved";
+    }
+  }
+
+  if (bottomActions) {
+    bottomActions.hidden = isInventoryCompleted();
   }
 
   if (sendBtn) {
-    sendBtn.classList.toggle("dirty", state.dirtyCount > 0);
+    sendBtn.textContent = "保存";
+    sendBtn.classList.toggle("dirty", hasDirty);
+    sendBtn.disabled = !hasDirty || isBusy || !canEdit();
+  }
+
+  if (completeBtn) {
+    completeBtn.disabled = !canShowComplete || isBusy;
   }
 }
 

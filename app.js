@@ -600,12 +600,7 @@ function getCompletionInfoMessage() {
 }
 
 function getCompletionFooterMeta() {
-  const completedAtLabel = formatTimestamp(state.completedAt);
-  if (!completedAtLabel) {
-    return "再編集を希望する場合、教務本部までご連絡ください。";
-  }
-
-  return `送信日時: ${completedAtLabel} / 再編集を希望する場合、教務本部までご連絡ください。`;
+  return "再編集を希望する場合、教務本部までご連絡ください。";
 }
 
 function updateInfoBanner(message = "") {

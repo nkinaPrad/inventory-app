@@ -2314,7 +2314,7 @@ async function exportJsonBackup() {
 }
 
 function exportCsv() {
-  const exportItems = state.items.filter((item) => item.qty > 0);
+  const exportItems = state.items;
   const headers = [
     "マスタ区分",
     "商品コード",

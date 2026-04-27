@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ====================================================================
  * 教材在庫管理システム - data.js マスタ利用版 (app.js)
  * ====================================================================
@@ -1621,7 +1621,13 @@ function normalizeItem(raw) {
     isCustom: !!raw.isCustom,
   };
 
-  item.searchTag = [
+  item.searchTag = buildItemSearchTag(item);
+
+  return item;
+}
+
+function buildItemSearchTag(item) {
+  return [
     item.name,
     item.category,
     item.subject,
@@ -1631,8 +1637,6 @@ function normalizeItem(raw) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-
-  return item;
 }
 
 function getDisplayItemName(item) {
@@ -2380,16 +2384,7 @@ async function importJsonBackup(e) {
             target.edition = importedItem.edition || target.edition;
           }
 
-          target.searchTag = [
-            target.name,
-            target.category,
-            target.subject,
-            target.publisher,
-            target.edition,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+          target.searchTag = buildItemSearchTag(target);
         } else if (importedItem.isCustom) {
           pushNewDirtyItemToState(
             normalizeItem({
@@ -2644,16 +2639,7 @@ function handleCustomItemSubmit(e) {
     target.publisher = publisher;
     target.edition = edition;
     target.qty = qty;
-    target.searchTag = [
-      target.name,
-      target.category,
-      target.subject,
-      target.publisher,
-      target.edition,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+    target.searchTag = buildItemSearchTag(target);
   } else {
     const id = "custom_" + Date.now();
 

@@ -12,31 +12,53 @@
 
 const INVENTORY_RESET_CONFIG = {
   inventoryCollection: "inventory",
+  progressPropertyKey: "INVENTORY_RESET_PROGRESS",
 };
 
 function resetAllSchoolInventoryData(options) {
-  validateInventoryExportBySettingsConfig_();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    throw new Error("別の棚卸データ初期化処理が実行中です。しばらく待ってから再実行してください。");
+  }
+
+  try {
+    return resetAllSchoolInventoryDataLocked_(options);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function resetAllSchoolInventoryDataLocked_(options) {
+  validateInventoryFirestoreConfig_();
 
   const resetOptions = options || {};
   const ui = resetOptions.suppressAlert ? null : SpreadsheetApp.getUi();
+  const progress = loadInventoryResetProgress_();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let settings = null;
+  let deletedItems = progress ? Number(progress.deletedItems || 0) : 0;
+  let summaries = [];
+  let startIndex = progress ? Number(progress.nextIndex || 0) : 0;
+
+  if (progress) {
+    if (!resetOptions.suppressAlert) {
+      ui.alert(
+        "前回の棚卸データ初期化を続きから再開します。\n" +
+          "再開位置: " +
+          (startIndex + 1) +
+          " / " +
+          (progress.targetCount || "不明") +
+          " 校舎目",
+      );
+    }
+  }
+
   const managementSettings = readInventoryManagementSettings_();
 
   if (isTodayWithinInventoryPeriod_()) {
-    const blockedMessage =
-      "棚卸期間中は棚卸データを初期化できません。\n" +
-      "棚卸開始日から棚卸締切日まではクリアを禁止しています。\n" +
-      "棚卸開始日: " +
-      Utilities.formatDate(
-        managementSettings.startDate,
-        Session.getScriptTimeZone(),
-        "yyyy/MM/dd",
-      ) +
-      "\n棚卸締切日: " +
-      Utilities.formatDate(
-        managementSettings.deadlineDate,
-        Session.getScriptTimeZone(),
-        "yyyy/MM/dd",
-      );
+    const blockedMessage = buildInventoryResetBlockedMessage_(
+      managementSettings,
+    );
 
     if (!resetOptions.suppressAlert) {
       ui.alert(blockedMessage);
@@ -46,11 +68,10 @@ function resetAllSchoolInventoryData(options) {
     throw new Error(blockedMessage);
   }
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const settings = readExportSettingsRows_(spreadsheet);
+  settings = readInventorySettingsRows_(spreadsheet);
   const targetCount = settings.length;
 
-  if (!resetOptions.suppressAlert && !resetOptions.skipConfirmation) {
+  if (!progress && !resetOptions.suppressAlert && !resetOptions.skipConfirmation) {
     const confirmed = ui.alert(
       "棚卸データ初期化",
       targetCount +
@@ -66,27 +87,68 @@ function resetAllSchoolInventoryData(options) {
     }
   }
 
-  exportInventoryToSchoolSheets({
-    fileNameSuffix: "クリア時自動出力",
-    suppressAlert: !!resetOptions.suppressAlert,
-  });
+  if (!progress) {
+    exportInventoryToSchoolSheets({
+      fileNameSuffix: "クリア時自動出力",
+      suppressAlert: !!resetOptions.suppressAlert,
+    });
+    saveInventoryResetProgressSnapshot_(
+      buildInventoryResetProgress_(
+        spreadsheet,
+        settings,
+        0,
+        0,
+        new Date().toISOString(),
+      ),
+    );
+  }
 
-  let deletedItems = 0;
-  const summaries = [];
+  try {
+    for (let index = startIndex; index < settings.length; index += 1) {
+      const setting = settings[index];
+      const result = resetSingleSchoolInventoryData_(setting);
+      deletedItems += result.deletedItems;
+      summaries.push(setting.sheetName + ": " + result.deletedItems + "件削除");
+      saveInventoryResetProgressSnapshot_(
+        buildInventoryResetProgress_(
+          spreadsheet,
+          settings,
+          index + 1,
+          deletedItems,
+          progress && progress.startedAt
+            ? progress.startedAt
+            : new Date().toISOString(),
+        ),
+      );
+    }
+  } catch (error) {
+    const failureMessage = buildInventoryResetFailureMessage_(
+      targetCount,
+      startIndex + summaries.length,
+      deletedItems,
+      error,
+    );
 
-  settings.forEach((setting) => {
-    const result = resetSingleSchoolInventoryData_(setting);
-    deletedItems += result.deletedItems;
-    summaries.push(setting.sheetName + ": " + result.deletedItems + "件削除");
-  });
+    if (!resetOptions.suppressAlert) {
+      ui.alert(failureMessage);
+      return {
+        targetCount: targetCount,
+        deletedItems: deletedItems,
+        message: failureMessage,
+        interrupted: true,
+      };
+    }
 
-  const resultMessage =
-    "棚卸データ初期化が完了しました。\n対象校舎数: " +
-    targetCount +
-    "\n削除 item 数: " +
-    deletedItems +
-    "件\n\n" +
-    summaries.join("\n");
+    throw error;
+  }
+
+  clearInventoryResetProgress_();
+
+  const resultMessage = buildInventoryResetResultMessage_(
+    targetCount,
+    deletedItems,
+    summaries,
+  );
 
   if (!resetOptions.suppressAlert) {
     ui.alert(resultMessage);
@@ -105,9 +167,12 @@ function resetSingleSchoolInventoryData_(setting) {
     throw new Error("token が空の設定行が含まれています。");
   }
 
-  const itemDocuments = listFirestoreDocumentsForSettings_(
-    buildFirestoreDocumentsUrlForSettings_(
-      INVENTORY_RESET_CONFIG.inventoryCollection + "/" + token + "/items",
+  const itemDocuments = listInventoryFirestoreDocuments_(
+    buildInventoryFirestoreDocumentsUrl_(
+      INVENTORY_RESET_CONFIG.inventoryCollection +
+        "/" +
+        encodeURIComponent(token) +
+        "/items",
     ),
   );
 
@@ -125,11 +190,11 @@ function resetSingleSchoolInventoryData_(setting) {
 function deleteFirestoreDocumentByNameForReset_(documentName) {
   const documentPath = extractFirestoreDocumentPathForReset_(documentName);
   const response = UrlFetchApp.fetch(
-    buildFirestoreDocumentsUrlForSettings_(documentPath),
+    buildInventoryFirestoreDocumentsUrl_(documentPath),
     {
       method: "delete",
       headers: {
-        Authorization: "Bearer " + getFirestoreAccessTokenForSettings_(),
+        Authorization: "Bearer " + getInventoryFirestoreAccessToken_(),
       },
       muteHttpExceptions: true,
     },
@@ -149,7 +214,7 @@ function deleteFirestoreDocumentByNameForReset_(documentName) {
 }
 
 function clearInventoryTokenFieldsForReset_(token) {
-  const tokenDocument = getFirestoreDocumentByPathForSettings_(
+  const tokenDocument = getInventoryFirestoreDocument_(
     INVENTORY_RESET_CONFIG.inventoryCollection,
     token,
   );
@@ -158,14 +223,14 @@ function clearInventoryTokenFieldsForReset_(token) {
   }
 
   const response = UrlFetchApp.fetch(
-    buildFirestoreDocumentsUrlForSettings_(
+    buildInventoryFirestoreDocumentsUrl_(
       INVENTORY_RESET_CONFIG.inventoryCollection + "/" + encodeURIComponent(token),
     ) + "?updateMask.fieldPaths=updatedAt&updateMask.fieldPaths=completedAt",
     {
       method: "patch",
       contentType: "application/json",
       headers: {
-        Authorization: "Bearer " + getFirestoreAccessTokenForSettings_(),
+        Authorization: "Bearer " + getInventoryFirestoreAccessToken_(),
       },
       payload: JSON.stringify({
         fields: {
@@ -203,4 +268,113 @@ function extractFirestoreDocumentPathForReset_(documentName) {
     );
   }
   return documentName.slice(index + marker.length);
+}
+
+function buildInventoryResetBlockedMessage_(managementSettings) {
+  return (
+    "棚卸期間中は棚卸データを初期化できません。\n" +
+    "棚卸開始日から棚卸締切日まではクリアを禁止しています。\n" +
+    "棚卸開始日: " +
+    Utilities.formatDate(
+      managementSettings.startDate,
+      Session.getScriptTimeZone(),
+      "yyyy/MM/dd",
+    ) +
+    "\n棚卸締切日: " +
+    Utilities.formatDate(
+      managementSettings.deadlineDate,
+      Session.getScriptTimeZone(),
+      "yyyy/MM/dd",
+    )
+  );
+}
+
+function buildInventoryResetProgress_(
+  spreadsheet,
+  settings,
+  nextIndex,
+  deletedItems,
+  startedAt,
+) {
+  return {
+    spreadsheetId: spreadsheet.getId(),
+    targetCount: settings.length,
+    nextIndex: nextIndex,
+    deletedItems: deletedItems,
+    startedAt: startedAt,
+  };
+}
+
+function buildInventoryResetFailureMessage_(
+  targetCount,
+  completedCount,
+  deletedItems,
+  error,
+) {
+  return (
+    "棚卸データ初期化の途中で停止しました。\n" +
+    "ここまでの進捗を保持しているため、再実行すると続きから再開できます。\n\n" +
+    "対象校舎数: " +
+    targetCount +
+    "\n完了校舎数: " +
+    completedCount +
+    "\n削除 item 数: " +
+    deletedItems +
+    "件\n\n" +
+    "停止理由: " +
+    (error && error.message ? error.message : error)
+  );
+}
+
+function buildInventoryResetResultMessage_(targetCount, deletedItems, summaries) {
+  const details = summaries.length > 0
+    ? "\n\n" + summaries.join("\n")
+    : "";
+
+  return (
+    "棚卸データ初期化が完了しました。\n対象校舎数: " +
+    targetCount +
+    "\n削除 item 数: " +
+    deletedItems +
+    "件" +
+    details
+  );
+}
+
+function loadInventoryResetProgress_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(
+    INVENTORY_RESET_CONFIG.progressPropertyKey,
+  );
+  if (!raw) {
+    return null;
+  }
+
+  const progress = JSON.parse(raw);
+  const currentSpreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+  if (progress.spreadsheetId !== currentSpreadsheetId) {
+    return null;
+  }
+
+  if (Number(progress.nextIndex || 0) < 0) {
+    return null;
+  }
+
+  return progress;
+}
+
+function saveInventoryResetProgress_(progress) {
+  PropertiesService.getScriptProperties().setProperty(
+    INVENTORY_RESET_CONFIG.progressPropertyKey,
+    JSON.stringify(progress),
+  );
+}
+
+function clearInventoryResetProgress_() {
+  PropertiesService.getScriptProperties().deleteProperty(
+    INVENTORY_RESET_CONFIG.progressPropertyKey,
+  );
+}
+
+function saveInventoryResetProgressSnapshot_(progress) {
+  saveInventoryResetProgress_(progress);
 }

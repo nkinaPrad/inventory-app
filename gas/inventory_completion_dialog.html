@@ -227,7 +227,7 @@
             setStatus(`読み込みに失敗しました: ${error.message || error}`);
             render();
           })
-          .getInventoryCompletionStatusesForModal();
+          .getInventoryCompletionEntriesForModal();
       }
 
       function saveEntries() {
@@ -235,16 +235,34 @@
         setStatus("棚卸完了状況を更新中...");
         syncButtons();
 
-        const payload = state.entries.map((entry) => ({
-          token: entry.token,
-          completed: !!entry.completed,
-        }));
+        const payload = state.entries
+          .filter((entry) => !!entry.completed !== !!entry.originalCompleted)
+          .map((entry) => ({
+            token: entry.token,
+            completed: !!entry.completed,
+            originalCompletedAtIso: entry.originalCompletedAtIso || "",
+          }));
+
+        if (payload.length === 0) {
+          state.isSaving = false;
+          setStatus("変更はありません。");
+          syncButtons();
+          return;
+        }
 
         google.script.run
           .withSuccessHandler((result) => {
             state.entries = Array.isArray(result.entries) ? result.entries : [];
             state.isSaving = false;
-            setStatus(`更新完了: ${result.updatedCount || 0}件`);
+            const updatedCount = result.updatedCount || 0;
+            const conflictCount = result.conflictCount || 0;
+            if (conflictCount > 0) {
+              setStatus(
+                `更新完了: ${updatedCount}件 / 競合のため未更新: ${conflictCount}件`,
+              );
+            } else {
+              setStatus(`更新完了: ${updatedCount}件`);
+            }
             render();
           })
           .withFailureHandler((error) => {
@@ -252,7 +270,7 @@
             setStatus(`更新に失敗しました: ${error.message || error}`);
             syncButtons();
           })
-          .updateInventoryCompletionStatusesFromModal(payload);
+          .saveInventoryCompletionEntriesFromModal(payload);
       }
 
       function escapeHtml(value) {

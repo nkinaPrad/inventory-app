@@ -1,4 +1,4 @@
-﻿const INVENTORY_COMPLETION_STATUS_CONFIG = {
+const INVENTORY_COMPLETION_CONFIG = {
   sheetName: "【校舎設定・棚卸状況】",
   inventoryCollection: "inventory",
   modalTitle: "棚卸完了状況",
@@ -18,31 +18,32 @@
   ],
 };
 
-function openInventoryCompletionStatusModal() {
+function openInventoryCompletionModal() {
   const template = HtmlService.createTemplateFromFile(
-    "inventory_completion_status_dialog",
+    "inventory_completion_dialog",
   );
-  template.modalTitle = INVENTORY_COMPLETION_STATUS_CONFIG.modalTitle;
+  template.modalTitle = INVENTORY_COMPLETION_CONFIG.modalTitle;
 
   const html = template.evaluate().setWidth(860).setHeight(620);
   SpreadsheetApp.getUi().showModalDialog(
     html,
-    INVENTORY_COMPLETION_STATUS_CONFIG.modalTitle,
+    INVENTORY_COMPLETION_CONFIG.modalTitle,
   );
 }
 
-function getInventoryCompletionStatusesForModal() {
-  validateInventoryExportBySettingsConfig_();
-  const sheet = getInventoryCompletionStatusSheet_();
+function getInventoryCompletionEntriesForModal() {
+  validateInventoryFirestoreConfig_();
+  const sheet = getInventoryCompletionSheet_();
   const sheetData = getInventoryCompletionSheetData_(sheet);
-  return buildInventoryCompletionStatusEntries_(sheetData);
+  return buildInventoryCompletionEntries_(sheetData);
 }
 
-function updateInventoryCompletionStatusesFromModal(entries) {
-  validateInventoryExportBySettingsConfig_();
+function saveInventoryCompletionEntriesFromModal(entries) {
+  validateInventoryFirestoreConfig_();
 
   const requestedEntries = Array.isArray(entries) ? entries : [];
   let updatedCount = 0;
+  let conflictCount = 0;
 
   requestedEntries.forEach((entry) => {
     const token = String(entry && entry.token ? entry.token : "").trim();
@@ -51,35 +52,47 @@ function updateInventoryCompletionStatusesFromModal(entries) {
     }
 
     const desiredCompleted = !!(entry && entry.completed);
-    const tokenData = readInventoryTokenDataByToken_(token);
-    const hasCompletedAt = !!tokenData.completedAt;
+    const tokenData = readInventoryTokenData_(token);
+    const currentCompletedAtIso = getCompletedAtIso_(tokenData);
+    const originalCompletedAtIso = getEntryOriginalCompletedAtIso_(entry);
+    const hasOriginalState = hasEntryOriginalCompletedState_(entry);
 
+    if (
+      hasOriginalState &&
+      currentCompletedAtIso !== originalCompletedAtIso
+    ) {
+      conflictCount += 1;
+      return;
+    }
+
+    const hasCompletedAt = !!tokenData.completedAt;
     if (!hasCompletedAt && desiredCompleted) {
-      patchInventoryCompletionStatus_(token, true);
+      patchInventoryCompletion_(token, true);
       updatedCount += 1;
       return;
     }
 
     if (hasCompletedAt && !desiredCompleted) {
-      patchInventoryCompletionStatus_(token, false);
+      patchInventoryCompletion_(token, false);
       updatedCount += 1;
     }
   });
 
   return {
     updatedCount: updatedCount,
-    entries: getInventoryCompletionStatusesForModal(),
+    conflictCount: conflictCount,
+    entries: getInventoryCompletionEntriesForModal(),
   };
 }
 
-function getInventoryCompletionStatusSheet_() {
+function getInventoryCompletionSheet_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(
-    INVENTORY_COMPLETION_STATUS_CONFIG.sheetName,
+    INVENTORY_COMPLETION_CONFIG.sheetName,
   );
   if (!sheet) {
     throw new Error(
       "シートが見つかりません: " +
-        INVENTORY_COMPLETION_STATUS_CONFIG.sheetName,
+        INVENTORY_COMPLETION_CONFIG.sheetName,
     );
   }
   return sheet;
@@ -92,7 +105,7 @@ function getInventoryCompletionSheetData_(sheet) {
   }
 
   const headerRow = values[0];
-  const headerIndexMap = buildHeaderIndexMap_(headerRow);
+  const headerIndexMap = buildInventoryHeaderIndexMap_(headerRow);
   ensureInventoryCompletionHeaders_(headerIndexMap);
 
   return {
@@ -104,39 +117,51 @@ function getInventoryCompletionSheetData_(sheet) {
 function ensureInventoryCompletionHeaders_(headerIndexMap) {
   findHeaderIndexByAliases_(
     headerIndexMap,
-    INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.roomLabel,
+    INVENTORY_COMPLETION_CONFIG.headerAliases.roomLabel,
   );
 }
 
-function buildInventoryCompletionStatusEntries_(sheetData) {
+function buildInventoryCompletionEntries_(sheetData) {
+  const tokens = sheetData.rows
+    .map((row) => getInventoryTokenFromRow_(row, sheetData.headerIndexMap))
+    .filter((token) => token);
+  const tokenDocumentsById = getInventoryFirestoreDocumentsByIds_(
+    INVENTORY_COMPLETION_CONFIG.inventoryCollection,
+    tokens,
+  );
+
   return sheetData.rows
     .map((row) =>
-      buildInventoryCompletionStatusEntry_(row, sheetData.headerIndexMap),
+      buildInventoryCompletionEntry_(
+        row,
+        sheetData.headerIndexMap,
+        tokenDocumentsById,
+      ),
     )
     .filter((entry) => entry.token);
 }
 
-function buildInventoryCompletionStatusEntry_(row, headerIndexMap) {
+function buildInventoryCompletionEntry_(row, headerIndexMap, tokenDocumentsById) {
   const token = getInventoryTokenFromRow_(row, headerIndexMap);
-  const roomKey = toStringOrEmptyForSettings_(
+  const roomKey = toInventoryStringOrEmpty_(
     readCellValueByAliases_(
       row,
       headerIndexMap,
-      INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.roomKey,
+      INVENTORY_COMPLETION_CONFIG.headerAliases.roomKey,
     ),
   );
-  const roomLabel = toStringOrEmptyForSettings_(
+  const roomLabel = toInventoryStringOrEmpty_(
     readCellValueByAliases_(
       row,
       headerIndexMap,
-      INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.roomLabel,
+      INVENTORY_COMPLETION_CONFIG.headerAliases.roomLabel,
     ),
   );
-  const outputSheetName = toStringOrEmptyForSettings_(
+  const outputSheetName = toInventoryStringOrEmpty_(
     readCellValueByAliases_(
       row,
       headerIndexMap,
-      INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.sheetName,
+      INVENTORY_COMPLETION_CONFIG.headerAliases.sheetName,
     ),
   );
 
@@ -152,7 +177,10 @@ function buildInventoryCompletionStatusEntry_(row, headerIndexMap) {
     };
   }
 
-  const tokenData = readInventoryTokenDataByToken_(token);
+  const tokenDocument = tokenDocumentsById[token] || null;
+  const tokenData = tokenDocument
+    ? convertInventoryFirestoreFieldsToObject_(tokenDocument.fields || {})
+    : {};
   const completedAt = tokenData.completedAt || null;
 
   return {
@@ -161,13 +189,15 @@ function buildInventoryCompletionStatusEntry_(row, headerIndexMap) {
     outputSheetName: outputSheetName,
     token: token,
     completed: !!completedAt,
+    originalCompleted: !!completedAt,
     completedAt: formatCompletedAtForSheet_(completedAt),
     completedAtIso: completedAt || "",
+    originalCompletedAtIso: completedAt || "",
   };
 }
 
 function writeInventoryCompletionStatusSheet_(spreadsheet) {
-  const entries = getInventoryCompletionStatusesForModal();
+  const entries = getInventoryCompletionEntriesForModal();
   const rows = entries
     .map((entry) => [
       entry.roomLabel || entry.outputSheetName,
@@ -176,37 +206,11 @@ function writeInventoryCompletionStatusSheet_(spreadsheet) {
     ])
     .sort((a, b) => String(a[1] || "").localeCompare(String(b[1] || ""), "ja"));
 
-  const sheet =
-    getOrCreateSheetByName_(
-      spreadsheet,
-      INVENTORY_COMPLETION_STATUS_CONFIG.outputSheetName,
-    );
-
-  sheet.clearContents();
-  sheet
-    .getRange(
-      1,
-      1,
-      1,
-      INVENTORY_COMPLETION_STATUS_CONFIG.outputHeaders.length,
-    )
-    .setValues([INVENTORY_COMPLETION_STATUS_CONFIG.outputHeaders]);
-
-  if (rows.length > 0) {
-    sheet
-      .getRange(
-        2,
-        1,
-        rows.length,
-        INVENTORY_COMPLETION_STATUS_CONFIG.outputHeaders.length,
-      )
-      .setValues(rows);
-  }
-
-  sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(
-    1,
-    INVENTORY_COMPLETION_STATUS_CONFIG.outputHeaders.length,
+  writeInventorySheetWithHeaders_(
+    spreadsheet,
+    INVENTORY_COMPLETION_CONFIG.outputSheetName,
+    INVENTORY_COMPLETION_CONFIG.outputHeaders,
+    rows,
   );
 }
 
@@ -214,7 +218,7 @@ function getInventoryTokenFromRow_(row, headerIndexMap) {
   const token = readCellValueByAliases_(
     row,
     headerIndexMap,
-    INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.token,
+    INVENTORY_COMPLETION_CONFIG.headerAliases.token,
   );
   if (String(token || "").trim()) {
     return String(token).trim();
@@ -223,7 +227,7 @@ function getInventoryTokenFromRow_(row, headerIndexMap) {
   const url = readCellValueByAliases_(
     row,
     headerIndexMap,
-    INVENTORY_COMPLETION_STATUS_CONFIG.headerAliases.url,
+    INVENTORY_COMPLETION_CONFIG.headerAliases.url,
   );
   return extractTokenFromInventoryUrl_(url);
 }
@@ -254,6 +258,25 @@ function readCellValueByAliases_(row, headerIndexMap, aliases) {
   return row[columnIndex];
 }
 
+function hasEntryOriginalCompletedState_(entry) {
+  return (
+    !!entry &&
+    Object.prototype.hasOwnProperty.call(entry, "originalCompletedAtIso")
+  );
+}
+
+function getEntryOriginalCompletedAtIso_(entry) {
+  return String(
+    entry && entry.originalCompletedAtIso ? entry.originalCompletedAtIso : "",
+  ).trim();
+}
+
+function getCompletedAtIso_(tokenData) {
+  return tokenData && tokenData.completedAt
+    ? String(tokenData.completedAt)
+    : "";
+}
+
 function findHeaderIndexByAliases_(headerIndexMap, aliases, allowMissing) {
   for (let i = 0; i < aliases.length; i += 1) {
     const alias = aliases[i];
@@ -277,28 +300,29 @@ function formatCompletedAtForSheet_(completedAt) {
   return Utilities.formatDate(
     new Date(completedAt),
     Session.getScriptTimeZone(),
-    INVENTORY_COMPLETION_STATUS_CONFIG.completedAtDisplayFormat,
+    INVENTORY_COMPLETION_CONFIG.completedAtDisplayFormat,
   );
 }
 
-function readInventoryTokenDataByToken_(token) {
-  const tokenDocument = getFirestoreDocumentByPathForSettings_(
-    INVENTORY_COMPLETION_STATUS_CONFIG.inventoryCollection,
+function readInventoryTokenData_(token) {
+  const tokenDocument = getInventoryFirestoreDocument_(
+    INVENTORY_COMPLETION_CONFIG.inventoryCollection,
     token,
   );
   return tokenDocument
-    ? convertFirestoreFieldsToObjectForSettings_(tokenDocument.fields || {})
+    ? convertInventoryFirestoreFieldsToObject_(tokenDocument.fields || {})
     : {};
 }
 
-function patchInventoryCompletionStatus_(token, isCompleted) {
+function patchInventoryCompletion_(token, isCompleted) {
   const documentPath =
-    INVENTORY_COMPLETION_STATUS_CONFIG.inventoryCollection +
+    INVENTORY_COMPLETION_CONFIG.inventoryCollection +
     "/" +
     encodeURIComponent(token);
   const now = new Date().toISOString();
-  const payload = {
-    fields: {
+  updateInventoryFirestoreDocumentFields_(
+    documentPath,
+    {
       updatedAt: {
         timestampValue: now,
       },
@@ -310,31 +334,7 @@ function patchInventoryCompletionStatus_(token, isCompleted) {
             nullValue: null,
           },
     },
-  };
-
-  const response = UrlFetchApp.fetch(
-    buildFirestoreDocumentsUrlForSettings_(documentPath) +
-      "?updateMask.fieldPaths=updatedAt&updateMask.fieldPaths=completedAt",
-    {
-      method: "patch",
-      contentType: "application/json",
-      headers: {
-        Authorization: "Bearer " + getFirestoreAccessTokenForSettings_(),
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true,
-    },
-  );
-
-  const status = response.getResponseCode();
-  if (status >= 200 && status < 300) {
-    return;
-  }
-
-  throw new Error(
-    "棚卸完了状態の更新に失敗しました: " +
-      status +
-      " " +
-      response.getContentText(),
+    ["updatedAt", "completedAt"],
+    "棚卸完了状態の更新に失敗しました: ",
   );
 }

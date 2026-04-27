@@ -1,4 +1,4 @@
-﻿const INVENTORY_MANAGEMENT_SHEET_CONFIG = {
+const INVENTORY_MANAGEMENT_CONFIG = {
   sheetName: "教材棚卸管理",
   cells: {
     year: "C2",
@@ -12,31 +12,31 @@
 function readInventoryManagementSettings_() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(
-    INVENTORY_MANAGEMENT_SHEET_CONFIG.sheetName,
+    INVENTORY_MANAGEMENT_CONFIG.sheetName,
   );
   if (!sheet) {
     throw new Error(
-      "シートが見つかりません: " + INVENTORY_MANAGEMENT_SHEET_CONFIG.sheetName,
+      "シートが見つかりません: " + INVENTORY_MANAGEMENT_CONFIG.sheetName,
     );
   }
 
   return {
-    year: toStringOrEmptyForSettings_(
-      sheet.getRange(INVENTORY_MANAGEMENT_SHEET_CONFIG.cells.year).getValue(),
+    year: toInventoryStringOrEmpty_(
+      sheet.getRange(INVENTORY_MANAGEMENT_CONFIG.cells.year).getValue(),
     ),
     startDate: requireManagementDateValue_(
       sheet,
-      INVENTORY_MANAGEMENT_SHEET_CONFIG.cells.startDate,
+      INVENTORY_MANAGEMENT_CONFIG.cells.startDate,
       "棚卸開始日",
     ),
     baseDate: requireManagementDateValue_(
       sheet,
-      INVENTORY_MANAGEMENT_SHEET_CONFIG.cells.baseDate,
+      INVENTORY_MANAGEMENT_CONFIG.cells.baseDate,
       "棚卸基準日",
     ),
     deadlineDate: requireManagementDateValue_(
       sheet,
-      INVENTORY_MANAGEMENT_SHEET_CONFIG.cells.deadlineDate,
+      INVENTORY_MANAGEMENT_CONFIG.cells.deadlineDate,
       "棚卸締切日",
     ),
   };
@@ -98,11 +98,11 @@ function moveSpreadsheetToInventoryResultFolder_(fileId) {
   }
 
   const parentFolder = parentFolders.next();
-  const resultRootFolder = findOrCreateChildFolderForInventory_(
+  const resultRootFolder = findOrCreateInventoryChildFolder_(
     parentFolder,
-    INVENTORY_MANAGEMENT_SHEET_CONFIG.resultRootFolderName,
+    INVENTORY_MANAGEMENT_CONFIG.resultRootFolderName,
   );
-  const monthFolder = findOrCreateChildFolderForInventory_(
+  const monthFolder = findOrCreateInventoryChildFolder_(
     resultRootFolder,
     getInventoryResultMonthFolderName_(),
   );

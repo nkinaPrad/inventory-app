@@ -1,8 +1,8 @@
-﻿/**
+/**
  * スプレッドシート上の教材マスタを `data.js` として Drive に出力します。
  */
 
-const MASTER_JS_EXPORT_CONFIG = {
+const MASTER_DATA_EXPORT_CONFIG = {
   targetSheetName: "【教材マスタ】",
   outputFileName: "data.js",
   outputFolderName: "教材データ",
@@ -22,18 +22,18 @@ function exportMasterDataAsJsFile() {
   const ui = SpreadsheetApp.getUi();
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(
-    MASTER_JS_EXPORT_CONFIG.targetSheetName,
+    MASTER_DATA_EXPORT_CONFIG.targetSheetName,
   );
 
   if (!sheet) {
     ui.alert(
-      "シート「" + MASTER_JS_EXPORT_CONFIG.targetSheetName + "」が見つかりません。",
+      "シート「" + MASTER_DATA_EXPORT_CONFIG.targetSheetName + "」が見つかりません。",
     );
     return;
   }
 
-  const folder = getOrCreateSiblingFolderForMasterData_(
-    MASTER_JS_EXPORT_CONFIG.outputFolderName,
+  const folder = getOrCreateMasterDataFolder_(
+    MASTER_DATA_EXPORT_CONFIG.outputFolderName,
   );
   const values = sheet.getDataRange().getValues();
 
@@ -50,7 +50,7 @@ function exportMasterDataAsJsFile() {
 
   const jsContent = buildMasterDataJsContent_(records);
 
-  upsertDriveFile_(folder, MASTER_JS_EXPORT_CONFIG.outputFileName, jsContent);
+  upsertDriveFile_(folder, MASTER_DATA_EXPORT_CONFIG.outputFileName, jsContent);
   ui.alert("教材データ フォルダへ data.js を保存しました。");
 }
 
@@ -61,11 +61,11 @@ function buildMasterDataRecord_(headers, row) {
   const record = {};
 
   headers.forEach((header, index) => {
-    const key = MASTER_JS_EXPORT_CONFIG.headerMap[header] || header;
+    const key = MASTER_DATA_EXPORT_CONFIG.headerMap[header] || header;
     let value = row[index];
 
     if (key === "id") {
-      value = normalizeItemId_(value);
+      value = normalizeMasterItemId_(value);
     }
 
     record[key] = value;
@@ -107,7 +107,7 @@ function escapeJsString_(text) {
  * 商品コードを文字列として正規化します。
  * スプレッドシートで指数表記になった値も元の整数へ戻します。
  */
-function normalizeItemId_(value) {
+function normalizeMasterItemId_(value) {
   const text = String(value);
 
   if (text.includes("E+")) {
@@ -137,7 +137,7 @@ function upsertDriveFile_(folder, fileName, content) {
  * 元スプレッドシートと同じ親フォルダ配下の指定フォルダを取得します。
  * フォルダがなければ新規作成します。
  */
-function getOrCreateSiblingFolderForMasterData_(folderName) {
+function getOrCreateMasterDataFolder_(folderName) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const spreadsheetFile = DriveApp.getFileById(spreadsheet.getId());
   const parentFolders = spreadsheetFile.getParents();
@@ -154,4 +154,12 @@ function getOrCreateSiblingFolderForMasterData_(folderName) {
   }
 
   return parentFolder.createFolder(folderName);
+}
+
+function normalizeItemId_(value) {
+  return normalizeMasterItemId_(value);
+}
+
+function getOrCreateSiblingFolderForMasterData_(folderName) {
+  return getOrCreateMasterDataFolder_(folderName);
 }

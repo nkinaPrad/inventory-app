@@ -564,6 +564,7 @@ function clearLocalLogs() {
   } catch (err) {
     console.warn("ローカルログの削除に失敗:", err);
   }
+  clearInventoryCache(state.token);
   renderLocalLogsDialog();
 }
 

@@ -93,6 +93,7 @@ const state = {
   customDialogMode: "create",
   editingCustomItemId: "",
   copySourceItemId: "",
+  copySourceItemSnapshot: null,
   activeCopyPopoverItemId: "",
   deletedItemIds: new Set(),
   deletedItemMetaMap: Object.create(null),
@@ -2482,6 +2483,12 @@ function fillCustomItemForm(item = null) {
 function openCustomItemDialogForCreate(sourceItem = null) {
   setCustomDialogMode("create");
   state.copySourceItemId = sourceItem?.id || "";
+  state.copySourceItemSnapshot = sourceItem
+    ? {
+        name: sourceItem.name || "",
+        edition: sourceItem.edition || "",
+      }
+    : null;
   fillCustomItemForm(sourceItem);
   openModal("customItemDialog");
 }
@@ -2489,6 +2496,7 @@ function openCustomItemDialogForCreate(sourceItem = null) {
 function openCustomItemDialogForEdit(item) {
   if (!item?.isCustom || !canEdit()) return;
   state.copySourceItemId = "";
+  state.copySourceItemSnapshot = null;
   setCustomDialogMode("edit", item);
   fillCustomItemForm(item);
   openModal("customItemDialog");
@@ -2622,7 +2630,9 @@ function handleCustomItemSubmit(e) {
     return;
   }
 
-  const sourceItem = state.itemsById.get(state.copySourceItemId);
+  const sourceItem =
+    state.copySourceItemSnapshot ||
+    state.itemsById.get(state.copySourceItemId);
   if (
     state.customDialogMode === "create" &&
     sourceItem &&
@@ -2664,6 +2674,7 @@ function handleCustomItemSubmit(e) {
   if (qtyInput) qtyInput.value = "0";
 
   state.copySourceItemId = "";
+  state.copySourceItemSnapshot = null;
   closeModal("customItemDialog");
   setCustomDialogMode("create");
 

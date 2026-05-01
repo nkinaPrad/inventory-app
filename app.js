@@ -34,6 +34,10 @@ const AUTO_SAVE_MAX_INTERVAL_MS = 30000;
 const INVENTORY_CACHE_TTL_MS = 1 * 60 * 60 * 1000;
 const LOCAL_LOG_LIMIT = 80;
 const LOCAL_LOG_STORAGE_KEY = "inventoryLocalLogs";
+const STAFF_AUTH_PASSWORD = "0530";
+const STAFF_AUTH_IDLE_TIMEOUT_MS = 40 * 60 * 1000;
+const STAFF_AUTH_STORAGE_KEY = "inventoryStaffAuth";
+const STAFF_AUTH_ACTIVITY_THROTTLE_MS = 15000;
 
 const CARD_TAP_MOVE_THRESHOLD_PX = 10;
 const CARD_QUICK_TAP_MAX_MS = 280;
@@ -97,6 +101,8 @@ const state = {
   activeCopyPopoverItemId: "",
   deletedItemIds: new Set(),
   deletedItemMetaMap: Object.create(null),
+  uiInitialized: false,
+  isStaffAuthenticated: false,
 };
 
 let listTouchStartY = 0;
@@ -113,6 +119,8 @@ let lastMousePressDurationMs = Number.POSITIVE_INFINITY;
 let ignoreClickUntil = 0;
 let lockedBodyScrollY = 0;
 let activeSavePromise = null;
+let staffAuthLogoutTimerId = 0;
+let staffAuthLastActivityWrite = 0;
 
 function redirectToInvalidUrl() {
   location.replace("./invalid-url.html");
@@ -127,8 +135,241 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  initStaffAuth();
+  await preloadStaffAuthRoomLabel();
+  if (!hasValidStaffAuthSession()) {
+    showStaffAuthScreen();
+    return;
+  }
+
+  unlockStaffAuth();
+});
+
+function initStaffAuth() {
+  const authForm = document.getElementById("authForm");
+
+  authForm?.setAttribute("autocomplete", "off");
+  initStaffCodeInputs();
+  authForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const password = getStaffCodeValue();
+
+    if (password !== STAFF_AUTH_PASSWORD) {
+      showStaffAuthError("パスワードが違います。");
+      clearStaffCodeInputs();
+      focusStaffCodeInput(0);
+      return;
+    }
+
+    setStaffAuthSession(Date.now());
+    unlockStaffAuth();
+  });
+
+}
+
+function getStaffCodeInputs() {
+  return Array.from(document.querySelectorAll(".auth-code-input"));
+}
+
+function initStaffCodeInputs() {
+  const inputs = getStaffCodeInputs();
+
+  inputs.forEach((input, index) => {
+    input.addEventListener("input", () => {
+      const digit = String(input.value || "").replace(/\D/g, "").slice(-1);
+      input.value = digit;
+
+      if (digit && index < inputs.length - 1) {
+        focusStaffCodeInput(index + 1);
+      }
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Backspace" && !input.value && index > 0) {
+        focusStaffCodeInput(index - 1);
+      }
+    });
+
+    input.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const pasted = e.clipboardData
+        ?.getData("text")
+        .replace(/\D/g, "")
+        .slice(0, inputs.length);
+
+      if (!pasted) return;
+
+      inputs.forEach((codeInput, pasteIndex) => {
+        codeInput.value = pasted[pasteIndex] || "";
+      });
+
+      const nextIndex = Math.min(pasted.length, inputs.length) - 1;
+      focusStaffCodeInput(nextIndex);
+    });
+  });
+}
+
+function getStaffCodeValue() {
+  return getStaffCodeInputs()
+    .map((input) => String(input.value || "").replace(/\D/g, ""))
+    .join("");
+}
+
+function clearStaffCodeInputs() {
+  getStaffCodeInputs().forEach((input) => {
+    input.value = "";
+  });
+}
+
+function focusStaffCodeInput(index) {
+  const inputs = getStaffCodeInputs();
+  const input = inputs[index];
+  if (!input) return;
+
+  window.setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
+}
+
+async function preloadStaffAuthRoomLabel() {
+  try {
+    const tokenRef = doc(db, "inventory", state.token);
+    const tokenSnap = await getDoc(tokenRef);
+
+    if (!tokenSnap.exists()) {
+      redirectToInvalidUrl();
+      return;
+    }
+
+    syncTokenState(tokenSnap.data() || {});
+    updateStaffAuthRoomLabel();
+  } catch (err) {
+    updateStaffAuthRoomLabel("校舎を確認できませんでした");
+  }
+}
+
+function updateStaffAuthRoomLabel(fallbackText = "") {
+  const authRoomLabel = document.getElementById("authRoomLabel");
+  if (!authRoomLabel) return;
+
+  const label = state.roomLabel || state.roomKey || fallbackText;
+  authRoomLabel.textContent = label || "校舎確認中";
+}
+
+function hasValidStaffAuthSession() {
+  try {
+    const raw = sessionStorage.getItem(STAFF_AUTH_STORAGE_KEY);
+    if (!raw) return false;
+
+    const data = JSON.parse(raw);
+    const lastActivityAt = Number(data?.lastActivityAt || 0);
+    return Date.now() - lastActivityAt < STAFF_AUTH_IDLE_TIMEOUT_MS;
+  } catch (err) {
+    sessionStorage.removeItem(STAFF_AUTH_STORAGE_KEY);
+    return false;
+  }
+}
+
+function setStaffAuthSession(lastActivityAt) {
+  sessionStorage.setItem(
+    STAFF_AUTH_STORAGE_KEY,
+    JSON.stringify({
+      authenticatedAt: Date.now(),
+      lastActivityAt,
+    }),
+  );
+}
+
+function showStaffAuthScreen() {
+  state.isStaffAuthenticated = false;
+  document.body.classList.add("auth-locked");
+  document.getElementById("authScreen")?.removeAttribute("hidden");
+  window.clearTimeout(staffAuthLogoutTimerId);
+
+  requestAnimationFrame(() => {
+    focusStaffCodeInput(0);
+  });
+}
+
+function showStaffAuthError(message) {
+  const authError = document.getElementById("authError");
+  if (!authError) return;
+  authError.textContent = message;
+  authError.hidden = false;
+}
+
+function unlockStaffAuth() {
+  state.isStaffAuthenticated = true;
+  document.body.classList.remove("auth-locked");
+  document.getElementById("authScreen")?.setAttribute("hidden", "");
+  document.getElementById("authError")?.setAttribute("hidden", "");
+  recordStaffAuthActivity(true);
+  startStaffAuthIdleWatch();
+
+  if (state.uiInitialized) return;
+  state.uiInitialized = true;
   initUI();
-  await initAccessAndLoad();
+  void initAccessAndLoad();
+}
+
+function recordStaffAuthActivity(force = false) {
+  if (!state.isStaffAuthenticated) return;
+
+  const now = Date.now();
+  if (
+    !force &&
+    now - staffAuthLastActivityWrite < STAFF_AUTH_ACTIVITY_THROTTLE_MS
+  ) {
+    return;
+  }
+
+  staffAuthLastActivityWrite = now;
+  setStaffAuthSession(now);
+  startStaffAuthIdleWatch();
+}
+
+function startStaffAuthIdleWatch() {
+  window.clearTimeout(staffAuthLogoutTimerId);
+  if (!state.isStaffAuthenticated) return;
+
+  let remainingMs = STAFF_AUTH_IDLE_TIMEOUT_MS;
+  try {
+    const raw = sessionStorage.getItem(STAFF_AUTH_STORAGE_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    const lastActivityAt = Number(data?.lastActivityAt || 0);
+    remainingMs = Math.max(
+      0,
+      STAFF_AUTH_IDLE_TIMEOUT_MS - (Date.now() - lastActivityAt),
+    );
+  } catch (err) {
+    remainingMs = 0;
+  }
+
+  staffAuthLogoutTimerId = window.setTimeout(() => {
+    logoutStaffAuth();
+  }, remainingMs);
+}
+
+function logoutStaffAuth() {
+  sessionStorage.removeItem(STAFF_AUTH_STORAGE_KEY);
+  window.clearTimeout(staffAuthLogoutTimerId);
+  location.reload();
+}
+
+[
+  "click",
+  "keydown",
+  "pointerdown",
+  "touchstart",
+  "input",
+  "scroll",
+].forEach((eventName) => {
+  window.addEventListener(
+    eventName,
+    () => recordStaffAuthActivity(false),
+    { passive: true },
+  );
 });
 
 function initUI() {

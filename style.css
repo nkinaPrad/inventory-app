@@ -71,6 +71,19 @@ body.modal-open {
   overflow: hidden;
 }
 
+body.auth-locked {
+  overflow: hidden;
+}
+
+body.auth-locked .top-panel,
+body.auth-locked .shell,
+body.auth-locked .bottom-bar,
+body.auth-locked dialog,
+body.auth-locked .copy-popover {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 button,
 input,
 select,
@@ -239,6 +252,108 @@ textarea {
   font-size: 20px;
   color: var(--sub);
   padding: 0;
+}
+
+/* ====================================================================
+   3.5. Staff Auth
+   ==================================================================== */
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #fff;
+}
+
+.auth-screen[hidden] {
+  display: none !important;
+}
+
+.auth-card {
+  width: min(320px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-head {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-room {
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.auth-field {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.auth-code-input {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 58px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  padding: 0;
+  background: #fff;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.auth-code-input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+  outline: none;
+}
+
+.auth-error {
+  min-height: 40px;
+  display: grid;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.auth-submit {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-submit:hover {
+  background: var(--primary-deep);
 }
 
 /* ====================================================================

@@ -157,7 +157,7 @@ function initStaffAuth() {
     if (password !== STAFF_AUTH_PASSWORD) {
       showStaffAuthError("パスワードが違います。");
       clearStaffCodeInputs();
-      focusStaffCodeInput(0);
+      focusStaffCodeInput();
       return;
     }
 
@@ -167,68 +167,73 @@ function initStaffAuth() {
 
 }
 
-function getStaffCodeInputs() {
-  return Array.from(document.querySelectorAll(".auth-code-input"));
+function getStaffCodeInput() {
+  return document.getElementById("staffCodeInput");
 }
 
 function initStaffCodeInputs() {
-  const inputs = getStaffCodeInputs();
+  const input = getStaffCodeInput();
+  const field = document.querySelector(".auth-field");
+  if (!input) return;
 
-  inputs.forEach((input, index) => {
-    input.addEventListener("input", () => {
-      const digit = String(input.value || "").replace(/\D/g, "").slice(-1);
-      input.value = digit;
-
-      if (digit && index < inputs.length - 1) {
-        focusStaffCodeInput(index + 1);
-      }
-    });
-
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Backspace" && !input.value && index > 0) {
-        focusStaffCodeInput(index - 1);
-      }
-    });
-
-    input.addEventListener("paste", (e) => {
-      e.preventDefault();
-      const pasted = e.clipboardData
-        ?.getData("text")
-        .replace(/\D/g, "")
-        .slice(0, inputs.length);
-
-      if (!pasted) return;
-
-      inputs.forEach((codeInput, pasteIndex) => {
-        codeInput.value = pasted[pasteIndex] || "";
-      });
-
-      const nextIndex = Math.min(pasted.length, inputs.length) - 1;
-      focusStaffCodeInput(nextIndex);
-    });
+  input.addEventListener("input", () => {
+    input.value = normalizeStaffCode(input.value);
+    renderStaffCodeBoxes();
   });
+
+  input.addEventListener("paste", (e) => {
+    e.preventDefault();
+    input.value = normalizeStaffCode(e.clipboardData?.getData("text") || "");
+    renderStaffCodeBoxes();
+  });
+
+  input.addEventListener("focus", renderStaffCodeBoxes);
+  input.addEventListener("blur", renderStaffCodeBoxes);
+
+  field?.addEventListener("click", () => {
+    focusStaffCodeInput();
+  });
+
+  renderStaffCodeBoxes();
 }
 
 function getStaffCodeValue() {
-  return getStaffCodeInputs()
-    .map((input) => String(input.value || "").replace(/\D/g, ""))
-    .join("");
+  return normalizeStaffCode(getStaffCodeInput()?.value || "");
 }
 
 function clearStaffCodeInputs() {
-  getStaffCodeInputs().forEach((input) => {
-    input.value = "";
+  const input = getStaffCodeInput();
+  if (input) input.value = "";
+  renderStaffCodeBoxes();
+}
+
+function normalizeStaffCode(value) {
+  return String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 4);
+}
+
+function renderStaffCodeBoxes() {
+  const input = getStaffCodeInput();
+  const code = normalizeStaffCode(input?.value || "");
+  const activeIndex = Math.min(code.length, 3);
+
+  document.querySelectorAll(".auth-code-box").forEach((box, index) => {
+    box.textContent = code[index] || "";
+    box.classList.toggle("is-filled", index < code.length);
+    box.classList.toggle(
+      "is-active",
+      document.activeElement === input && index === activeIndex,
+    );
   });
 }
 
-function focusStaffCodeInput(index) {
-  const inputs = getStaffCodeInputs();
-  const input = inputs[index];
+function focusStaffCodeInput() {
+  const input = getStaffCodeInput();
   if (!input) return;
 
   window.setTimeout(() => {
     input.focus();
-    input.select();
   }, 0);
 }
 
@@ -288,7 +293,7 @@ function showStaffAuthScreen() {
   window.clearTimeout(staffAuthLogoutTimerId);
 
   requestAnimationFrame(() => {
-    focusStaffCodeInput(0);
+    focusStaffCodeInput();
   });
 }
 

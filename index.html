@@ -16,45 +16,22 @@
         </div>
         <div class="auth-field">
           <input
+            id="staffCodeInput"
             class="auth-code-input"
             type="tel"
+            name="staff_auth_code"
             inputmode="numeric"
             pattern="[0-9]*"
-            maxlength="1"
+            maxlength="4"
             autocomplete="off"
-            aria-label="1桁目"
-            data-code-index="0"
+            aria-label="パスワード"
           />
-          <input
-            class="auth-code-input"
-            type="tel"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            maxlength="1"
-            autocomplete="off"
-            aria-label="2桁目"
-            data-code-index="1"
-          />
-          <input
-            class="auth-code-input"
-            type="tel"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            maxlength="1"
-            autocomplete="off"
-            aria-label="3桁目"
-            data-code-index="2"
-          />
-          <input
-            class="auth-code-input"
-            type="tel"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            maxlength="1"
-            autocomplete="off"
-            aria-label="4桁目"
-            data-code-index="3"
-          />
+          <div class="auth-code-boxes" aria-hidden="true">
+            <span class="auth-code-box" data-code-box="0"></span>
+            <span class="auth-code-box" data-code-box="1"></span>
+            <span class="auth-code-box" data-code-box="2"></span>
+            <span class="auth-code-box" data-code-box="3"></span>
+          </div>
         </div>
         <div id="authError" class="auth-error" hidden></div>
         <button id="authSubmitBtn" class="auth-submit" type="submit">

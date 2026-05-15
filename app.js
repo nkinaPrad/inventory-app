@@ -164,7 +164,6 @@ function initStaffAuth() {
     setStaffAuthSession(Date.now());
     unlockStaffAuth();
   });
-
 }
 
 function getStaffCodeInput() {
@@ -362,20 +361,13 @@ function logoutStaffAuth() {
   location.reload();
 }
 
-[
-  "click",
-  "keydown",
-  "pointerdown",
-  "touchstart",
-  "input",
-  "scroll",
-].forEach((eventName) => {
-  window.addEventListener(
-    eventName,
-    () => recordStaffAuthActivity(false),
-    { passive: true },
-  );
-});
+["click", "keydown", "pointerdown", "touchstart", "input", "scroll"].forEach(
+  (eventName) => {
+    window.addEventListener(eventName, () => recordStaffAuthActivity(false), {
+      passive: true,
+    });
+  },
+);
 
 function initUI() {
   const roomLabelEl = document.getElementById("roomLabel");
@@ -1366,7 +1358,7 @@ async function handleCompleteInventory() {
   }
 
   const confirmed = confirm(
-    "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。\n\n※未保存の変更がある場合は、保存後に本部へ送信されます。",
+    "【棚卸完了】\n棚卸結果を本部へ送信しますか？\n（すべての在庫入力を終えてから実行してください）\n\n送信後は、入力内容を変更できなくなります。\n棚卸が完了していない場合は、キャンセルを押してください。",
   );
   if (!confirmed) return;
 
@@ -1716,10 +1708,7 @@ function syncFilterOverflowHint() {
 
   filterLayout.classList.toggle("has-filter-overflow", hasOverflow);
   filterLayout.classList.toggle("has-filter-overflow-left", hasLeftOverflow);
-  filterLayout.classList.toggle(
-    "has-filter-overflow-right",
-    hasRightOverflow,
-  );
+  filterLayout.classList.toggle("has-filter-overflow-right", hasRightOverflow);
 }
 
 function applyFilterAndRender() {
@@ -1875,13 +1864,7 @@ function normalizeItem(raw) {
 }
 
 function buildItemSearchTag(item) {
-  return [
-    item.name,
-    item.category,
-    item.subject,
-    item.publisher,
-    item.edition,
-  ]
+  return [item.name, item.category, item.subject, item.publisher, item.edition]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -2877,8 +2860,7 @@ function handleCustomItemSubmit(e) {
   }
 
   const sourceItem =
-    state.copySourceItemSnapshot ||
-    state.itemsById.get(state.copySourceItemId);
+    state.copySourceItemSnapshot || state.itemsById.get(state.copySourceItemId);
   if (
     state.customDialogMode === "create" &&
     sourceItem &&
